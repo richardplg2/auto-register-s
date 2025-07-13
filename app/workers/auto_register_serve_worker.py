@@ -1,5 +1,3 @@
-import asyncio
-
 from app.core.settings import get_settings
 from app.services.dahua_netsdk_service import DahuaNetSDKService
 from app.types.dahua_netsdk_types import DeviceAutoRegisterEvent
@@ -16,24 +14,12 @@ class AutoRegisterServeWorker(BaseWorker):
         self.server_handle = None
 
     async def process(self) -> None:
-        self.server_handle = self.dahua_netsdk_service.listen_server(
+        self.dahua_netsdk_service.listen_server(
             settings.AUTO_REGISTER_SERVER_HOST,
             settings.AUTO_REGISTER_SERVER_PORT,
             120000,
             self._discover_device_callback,
         )
-
-        if self.server_handle:
-            self.logger.info(
-                "Listening for auto registration server...",
-                port=settings.AUTO_REGISTER_SERVER_PORT,
-                host=settings.AUTO_REGISTER_SERVER_HOST,
-            )
-        else:
-            self.logger.error("Failed to listen for auto registration server.")
-
-        while not self.should_stop:
-            await asyncio.sleep(2)
 
     async def cleanup(self) -> None:
         self.logger.info("Cleaning up...")
