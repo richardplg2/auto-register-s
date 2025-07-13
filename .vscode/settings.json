@@ -1,0 +1,114 @@
+{
+    "python.defaultInterpreterPath": "./.venv/bin/python",
+    "python.formatting.provider": "black",
+    "python.formatting.blackArgs": [
+        "--line-length",
+        "88"
+    ],
+    "python.linting.enabled": true,
+    "python.linting.pylintEnabled": false,
+    "python.linting.flake8Enabled": true,
+    "python.linting.flake8Args": [
+        "--max-line-length=88",
+        "--extend-ignore=E203,W503"
+    ],
+    "python.linting.mypyEnabled": true,
+    "python.linting.mypyArgs": [
+        "--ignore-missing-imports",
+        "--strict"
+    ],
+    "python.sortImports.args": [
+        "--profile",
+        "black"
+    ],
+    "python.analysis.typeCheckingMode": "strict",
+    "python.analysis.autoImportCompletions": true,
+    "python.analysis.completeFunctionParens": true,
+    "python.analysis.inlayHints.functionReturnTypes": true,
+    "python.analysis.inlayHints.variableTypes": true,
+    "python.analysis.inlayHints.pytestParameters": true,
+    "editor.formatOnSave": true,
+    "editor.codeActionsOnSave": {
+        "source.organizeImports": "explicit",
+        "source.fixAll.flake8": "explicit"
+    },
+    "editor.rulers": [
+        88
+    ],
+    "files.associations": {
+        "*.py": "python"
+    },
+    "python.testing.pytestEnabled": true,
+    "python.testing.pytestArgs": [
+        "tests"
+    ],
+    "python.testing.unittestEnabled": false,
+    "python.testing.nosetestsEnabled": false,
+    "autoDocstring.docstringFormat": "google",
+    "autoDocstring.generateDocstringOnEnter": true,
+    "autoDocstring.includeName": true,
+    "autoDocstring.includeExtendedSummary": true,
+    "editor.quickSuggestions": {
+        "other": true,
+        "comments": true,
+        "strings": true
+    },
+    "github.copilot.enable": {
+        "*": true,
+        "plaintext": true,
+        "markdown": true,
+        "scminput": false,
+        "yaml": true,
+        "python": true
+    },
+    "github.copilot.advanced": {
+        "debug.overrideEngine": "copilot-chat",
+        "debug.useElectronFetcher": true,
+        "debug.chatOverrideEngine": "copilot-chat"
+    },
+    "json.schemas": [
+        {
+            "fileMatch": [
+                "pyproject.toml"
+            ],
+            "url": "https://json.schemastore.org/pyproject.json"
+        }
+    ],
+    "files.exclude": {
+        "**/__pycache__": true,
+        "**/*.pyc": true,
+        ".pytest_cache": true,
+        ".coverage": true,
+        "htmlcov": true,
+        ".mypy_cache": true,
+        ".venv": false
+    },
+    "search.exclude": {
+        "**/__pycache__": true,
+        "**/*.pyc": true,
+        ".pytest_cache": true,
+        ".coverage": true,
+        "htmlcov": true,
+        ".mypy_cache": true
+    },
+    "python.envFile": "${workspaceFolder}/.env",
+    "python.terminal.activateEnvironment": true,
+    "python.experiments.enabled": true,
+    "python.experiments.optInto": [
+        "pythonTestAdapter"
+    ],
+    "files.trimTrailingWhitespace": true,
+    "files.insertFinalNewline": true,
+    "files.trimFinalNewlines": true,
+    "editor.insertSpaces": true,
+    "editor.tabSize": 4,
+    "editor.detectIndentation": false,
+    "editor.wordWrap": "on",
+    "editor.wordWrapColumn": 88,
+    "workbench.colorCustomizations": {
+        "editorRuler.foreground": "#444444"
+    },
+    "emmet.includeLanguages": {
+        "python": "python"
+    }
+}
