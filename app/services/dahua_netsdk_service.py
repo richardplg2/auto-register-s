@@ -25,7 +25,14 @@ class DahuaNetSDKService:
     async def init(self):
         logger.info("Initializing DahuaNetSDKService...")
         self.sdk = NetClient()
-        logger.info("DahuaNetSDKService initialized.")
+        result = self.sdk.InitEx()  # type: ignore
+        if result == 1:
+            logger.info("DahuaNetSDKService initialized.")
+        else:
+            logger.error(
+                "Failed to initialize DahuaNetSDKService.",
+                msg=self.sdk.GetLastErrorMessage(),
+            )
 
     async def shutdown(self):
         logger.info("DahuaNetSDKService shutting down...")
@@ -66,7 +73,7 @@ class DahuaNetSDKService:
 
         logger.info("Logged in to Dahua device.")
 
-    def listenServer(
+    def listen_server(
         self,
         host: str,
         port: int,
@@ -81,25 +88,25 @@ class DahuaNetSDKService:
                 f"Service event received: Handle={lHandle}, IP={pIp.decode()}, Port={wPort}, Command={lCommand}, Buffer Length={dwBufLen}, User={dwUser}"  # type: ignore
             )
 
+            # Parse device_id from pBuf (similar to Java code)
+            device_id = ""
+            try:
+                if pBuf and dwBufLen > 0:
+                    buf = ctypes.string_at(pBuf, dwBufLen)  # type: ignore
+                    device_id = buf.decode("utf-8").strip()
+            except Exception as e:
+                logger.error("Failed to decode device_id", error=str(e))
+
             callback(
                 DeviceAutoRegisterEvent(
                     ip=pIp.decode(),  # type: ignore
                     port=wPort,  # type: ignore
                     command=lCommand,  # type: ignore
-                    device_code="sdsss",
+                    device_code=device_id,
                 )
             )
             return 0
 
-        fn_callback = fServiceCallBack(self.service_callback)  # type: ignore
+        fn_callback = fServiceCallBack(service_callback)  # type: ignore
 
-        result = self.sdk.ListenServer("0.0.0.0", 9600, timeout, fn_callback, 0)  # type: ignore
-
-        print(f"ListenServer result: {result}")
-
-    def service_callback(self, lHandle, pIp, wPort, lCommand, pBuf, dwBufLen, dwUser):
-        """Callback function for service events"""
-        print(
-            f"Service event received: Handle={lHandle}, IP={pIp.decode()}, Port={wPort}, Command={lCommand}, Buffer Length={dwBufLen}, User={dwUser}"  # type: ignore
-        )
-        return 0
+        return self.sdk.ListenServer(host, port, timeout, fn_callback, 0)  # type: ignore

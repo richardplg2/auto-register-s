@@ -9,24 +9,34 @@ settings = get_settings()
 
 
 class AutoRegisterServeWorker(BaseWorker):
+
     def __init__(self, dahua_netsdk_service: DahuaNetSDKService) -> None:
         super().__init__("auto-register-serve-worker")
         self.dahua_netsdk_service = dahua_netsdk_service
+        self.server_handle = None
 
     async def process(self) -> None:
-        result = self.dahua_netsdk_service.listenServer(
+        self.server_handle = self.dahua_netsdk_service.listen_server(
             settings.AUTO_REGISTER_SERVER_HOST,
             settings.AUTO_REGISTER_SERVER_PORT,
-            12000,
+            120000,
             self._discover_device_callback,
         )
+
+        if self.server_handle:
+            self.logger.info(
+                "Listening for auto registration server...",
+                port=settings.AUTO_REGISTER_SERVER_PORT,
+                host=settings.AUTO_REGISTER_SERVER_HOST,
+            )
+        else:
+            self.logger.error("Failed to listen for auto registration server.")
 
         while not self.should_stop:
             await asyncio.sleep(2)
 
     async def cleanup(self) -> None:
         self.logger.info("Cleaning up...")
-        await asyncio.sleep(1)
 
     def _discover_device_callback(self, device: DeviceAutoRegisterEvent):
         """Callback for discovered devices"""
