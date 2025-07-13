@@ -18,6 +18,7 @@ async def get_device(
 ):
     """Get device by ID using dependency injection."""
     try:
+        print(device_repo)
         device = await device_repo.get_device_by_id(device_id)
         if not device:
             raise HTTPException(status_code=404, detail="Device not found")

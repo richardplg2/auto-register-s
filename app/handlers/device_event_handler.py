@@ -58,10 +58,16 @@ class DeviceAutoRegisterHandler(EventHandler):
                 await self.device_repo.update_device_by_code(device_code, updates)
                 return
 
+            if device.username is None or device.password is None:
+                logger.error(
+                    "Device username or password is not set", device_code=device_code
+                )
+                return
+
             logger.info("Device is connected", device_code=device_code)
 
             login_id = self.dahua_netsdk_service.login(
-                ip, port, device.username, device.password
+                device_code, ip, port, device.username, device.password
             )
 
             print(f"Login ID: {login_id}")
