@@ -109,4 +109,6 @@ class DahuaNetSDKService:
 
         fn_callback = fServiceCallBack(service_callback)  # type: ignore
 
-        return self.sdk.ListenServer(host, port, timeout, fn_callback, 0)  # type: ignore
+        result = self.sdk.ListenServer(host, port, timeout, fn_callback, 0)  # type: ignore
+        print(f"ListenServer result: {result}")
+        return result
