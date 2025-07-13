@@ -12,7 +12,7 @@ class WorkerManager:
         self.container = container
 
         # Pass container to workers that need it
-        w1 = AutoRegisterServeWorker(container.dahua_netsdk_service())
+        w1 = AutoRegisterServeWorker(container)
         w2 = EventPollingWorker()
 
         self.add_worker(w1)

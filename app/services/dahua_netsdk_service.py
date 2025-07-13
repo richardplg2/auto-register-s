@@ -1,7 +1,9 @@
+import asyncio
 import ctypes
+import inspect
 import time
 from ctypes import sizeof
-from typing import Callable
+from typing import Any, Awaitable, Callable
 
 import structlog
 from NetSDK.NetSDK import NetClient  # type: ignore
@@ -79,36 +81,9 @@ class DahuaNetSDKService:
         host: str,
         port: int,
         timeout: int,
-        callback: Callable[[DeviceAutoRegisterEvent], None],
+        fn_callback: Any,
     ):
         """Listen for incoming connections on the specified host and port."""
-
-        def service_callback(lHandle, pIp, wPort, lCommand, pBuf, dwBufLen, dwUser):  # type: ignore
-            """Callback function for service events"""
-            print(
-                f"Service event received: Handle={lHandle}, IP={pIp.decode()}, Port={wPort}, Command={lCommand}, Buffer Length={dwBufLen}, User={dwUser}"  # type: ignore
-            )
-
-            # Parse device_id from pBuf (similar to Java code)
-            device_id = ""
-            try:
-                if pBuf and dwBufLen > 0:
-                    buf = ctypes.string_at(pBuf, dwBufLen)  # type: ignore
-                    device_id = buf.decode("utf-8").strip()
-            except Exception as e:
-                logger.error("Failed to decode device_id", error=str(e))
-
-            callback(
-                DeviceAutoRegisterEvent(
-                    ip=pIp.decode(),  # type: ignore
-                    port=wPort,  # type: ignore
-                    command=lCommand,  # type: ignore
-                    device_code=device_id,
-                )
-            )
-            return 0
-
-        fn_callback = fServiceCallBack(service_callback)  # type: ignore
 
         try:
             result = self.sdk.ListenServer(host, port, timeout, fn_callback, 0)  # type: ignore
@@ -116,8 +91,6 @@ class DahuaNetSDKService:
                 logger.info(
                     "Listening for auto registration server...", port=port, host=host
                 )
-                while True:
-                    time.sleep(2)
 
             logger.info("Stopped listening on server.")
         except Exception as e:
