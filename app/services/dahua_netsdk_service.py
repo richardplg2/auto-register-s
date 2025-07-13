@@ -118,8 +118,7 @@ class DahuaNetSDKService:
                 )
                 while True:
                     time.sleep(2)
-                    if not self.sdk.IsListening():  # type: ignore
-                        break
+
             logger.info("Stopped listening on server.")
         except Exception as e:
             logger.error("Error occurred while listening on server", error=str(e))

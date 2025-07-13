@@ -26,5 +26,5 @@ class AutoRegisterServeWorker(BaseWorker):
 
     def _discover_device_callback(self, device: DeviceAutoRegisterEvent):
         """Callback for discovered devices"""
-        self.logger.info("Discovered device", device_info=device)
+        self.logger.info("Discovered device", device_info=device.__dict__)
         # Handle the discovered device (e.g., register it)
