@@ -82,33 +82,34 @@ class DahuaNetSDKService:
     ):
         """Listen for incoming connections on the specified host and port."""
 
-        def service_callback(lHandle, pIp, wPort, lCommand, pBuf, dwBufLen, dwUser):  # type: ignore
-            """Callback function for service events"""
-            print(
-                f"Service event received: Handle={lHandle}, IP={pIp.decode()}, Port={wPort}, Command={lCommand}, Buffer Length={dwBufLen}, User={dwUser}"  # type: ignore
-            )
-
-            # Parse device_id from pBuf (similar to Java code)
-            device_id = ""
-            try:
-                if pBuf and dwBufLen > 0:
-                    buf = ctypes.string_at(pBuf, dwBufLen)  # type: ignore
-                    device_id = buf.decode("utf-8").strip()
-            except Exception as e:
-                logger.error("Failed to decode device_id", error=str(e))
-
-            callback(
-                DeviceAutoRegisterEvent(
-                    ip=pIp.decode(),  # type: ignore
-                    port=wPort,  # type: ignore
-                    command=lCommand,  # type: ignore
-                    device_code=device_id,
-                )
-            )
-            return 0
-
-        fn_callback = fServiceCallBack(service_callback)  # type: ignore
+        fn_callback = fServiceCallBack(self._service_callback)  # type: ignore
 
         result = self.sdk.ListenServer(host, port, timeout, fn_callback, 0)  # type: ignore
         print(f"ListenServer result: {result}")
         return result
+
+    def _service_callback(self, lHandle, pIp, wPort, lCommand, pBuf, dwBufLen, dwUser):  # type: ignore
+        """Callback function for service events"""
+        print(
+            f"Service event received: Handle={lHandle}, IP={pIp.decode()}, Port={wPort}, Command={lCommand}, Buffer Length={dwBufLen}, User={dwUser}"  # type: ignore
+        )
+
+        # Parse device_id from pBuf (similar to Java code)
+        device_id = ""
+        try:
+            if pBuf and dwBufLen > 0:
+                buf = ctypes.string_at(pBuf, dwBufLen)  # type: ignore
+                device_id = buf.decode("utf-8").strip()
+        except Exception as e:
+            logger.error("Failed to decode device_id", error=str(e))
+
+        # callback(
+        #     DeviceAutoRegisterEvent(
+        #         ip=pIp.decode(),  # type: ignore
+        #         port=wPort,  # type: ignore
+        #         command=lCommand,  # type: ignore
+        #         device_code=device_id,
+        #     )
+        # )
+        print("device id ", device_id)
+        return 0
