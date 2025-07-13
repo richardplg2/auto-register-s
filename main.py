@@ -1,3 +1,4 @@
+import asyncio
 import logging
 from contextlib import asynccontextmanager
 
@@ -23,8 +24,10 @@ async def lifespan(app: FastAPI):
 
     logger.info("Application starting up...")
 
-    # Initialize container resources
-    container.init_resources()
+    # Initialize container resources - manually call methods
+    main_loop = asyncio.get_event_loop()
+    event_bus = container.event_bus()
+    event_bus.set_main_loop(main_loop)
 
     # Manually initialize database
     db = container.db()
@@ -33,18 +36,30 @@ async def lifespan(app: FastAPI):
     dh_service = container.dahua_netsdk_service()
     await dh_service.init()
 
+    # Setup event handlers - manually subscribe
+    device_handler = container.device_auto_register_handler()
+    event_bus.subscribe("device_auto_register", device_handler)
+
+    # Start event bus
+    await event_bus.start()
+
     worker_manager = WorkerManager(container)
     worker_manager.start_all()
 
     yield
 
     logger.info("Application shutting down...")
+
+    # Stop workers
     worker_manager.stop_all()
+
+    # Stop event bus
+    await event_bus.stop()
+
     await dh_service.shutdown()
     # Shutdown resources
     db = container.db()
     await db.shutdown()
-    container.shutdown_resources()
     logger.info("Container resources shutdown complete")
 
 
