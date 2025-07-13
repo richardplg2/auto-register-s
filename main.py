@@ -27,8 +27,8 @@ async def lifespan(app: FastAPI):
     container.init_resources()
 
     # Manually initialize database
-    # db = container.db()
-    # await db.init()
+    db = container.db()
+    await db.init()
 
     dh_service = container.dahua_netsdk_service()
     await dh_service.init()
@@ -42,8 +42,8 @@ async def lifespan(app: FastAPI):
     worker_manager.stop_all()
     await dh_service.shutdown()
     # Shutdown resources
-    # db = container.db()
-    # await db.shutdown()
+    db = container.db()
+    await db.shutdown()
     container.shutdown_resources()
     logger.info("Container resources shutdown complete")
 

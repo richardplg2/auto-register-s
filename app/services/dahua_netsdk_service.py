@@ -1,20 +1,14 @@
-import asyncio
 import ctypes
-import inspect
-import time
 from ctypes import sizeof
-from typing import Any, Awaitable, Callable
+from typing import Any
 
 import structlog
 from NetSDK.NetSDK import NetClient  # type: ignore
-from NetSDK.SDK_Callback import fServiceCallBack  # type: ignore
 from NetSDK.SDK_Enum import EM_LOGIN_SPAC_CAP_TYPE  # type: ignore
 from NetSDK.SDK_Struct import (  # type: ignore
     NET_IN_LOGIN_WITH_HIGHLEVEL_SECURITY,
     NET_OUT_LOGIN_WITH_HIGHLEVEL_SECURITY,
 )
-
-from app.types.dahua_netsdk_types import DeviceAutoRegisterEvent
 
 logger = structlog.get_logger(__name__)
 
@@ -91,8 +85,11 @@ class DahuaNetSDKService:
                 logger.info(
                     "Listening for auto registration server...", port=port, host=host
                 )
+            else:
+                logger.error(
+                    "Failed to listen on server.", error=self.sdk.GetLastErrorMessage()
+                )
 
-            logger.info("Stopped listening on server.")
         except Exception as e:
             logger.error("Error occurred while listening on server", error=str(e))
             raise e

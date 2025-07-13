@@ -1,8 +1,11 @@
 import asyncio
 import ctypes
 import time
+from datetime import datetime
+from typing import Any
 
 from NetSDK.SDK_Callback import fServiceCallBack  # type: ignore
+from NetSDK.SDK_Enum import EM_AUTOREGISTER_TYPE  # type: ignore
 
 from app.core.containers import Container
 from app.core.settings import get_settings
@@ -77,7 +80,33 @@ class AutoRegisterServeWorker(BaseWorker):
     async def cleanup(self) -> None:
         self.logger.info("Cleaning up...")
 
-    async def _discover_device_callback(self, device: DeviceAutoRegisterEvent):
+    async def _discover_device_callback(self, event: DeviceAutoRegisterEvent):
         """Callback for discovered devices"""
-        self.logger.info("Discovered device", device_info=device.__dict__)
-        # Handle the discovered device (e.g., register it)
+        self.logger.info("Discovered device", device_info=event.__dict__)
+
+        # Get device by code
+        device = await self.device_repo.get_by_code(event.device_code)
+        if device is None or device.is_active is False:
+            self.logger.info(
+                "Device is not registered or inactive", device_code=event.device_code
+            )
+            return
+
+        # Update device status based on command
+        if event.command == EM_AUTOREGISTER_TYPE.DISCONNECT:
+            self.logger.info("Device is disconnected", device_code=event.device_code)
+            # Update device as offline
+            await self.device_repo.update_device_by_code(
+                event.device_code,
+                {"is_online": False, "last_disconnected_at": datetime.now()},
+            )
+        else:
+            self.logger.info("Device is connected", device_code=event.device_code)
+            # Update device as online and update IP/port if changed
+            updates: dict[str, Any] = {
+                "is_online": True,
+                "last_connected_at": datetime.now(),
+                "ip": event.ip,
+                "port": event.port,
+            }
+            await self.device_repo.update_device_by_code(event.device_code, updates)
