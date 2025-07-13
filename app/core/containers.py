@@ -31,7 +31,9 @@ class Container(containers.DeclarativeContainer):
 
     # Event Handlers
     device_auto_register_handler = providers.Factory(
-        DeviceAutoRegisterHandler, device_repo=device_repo
+        DeviceAutoRegisterHandler,
+        device_repo=device_repo,
+        dahua_netsdk_service=dahua_netsdk_service,
     )
 
     def initialize_container_resources(self):

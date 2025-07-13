@@ -36,7 +36,7 @@ class DahuaNetSDKService:
         self.sdk.Cleanup()
         logger.info("DahuaNetSDKService shut down.")
 
-    async def login(
+    def login(
         self, device_ip: str, device_port: int, username: str, password: str
     ):
         """Login to the Dahua device."""
