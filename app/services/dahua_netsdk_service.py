@@ -1,23 +1,26 @@
 import ctypes
 from ctypes import sizeof
-from datetime import datetime
-from typing import Any, Optional
+from typing import Any, List, Optional
 
 import structlog
 from NetSDK.NetSDK import NetClient  # type: ignore
 from NetSDK.SDK_Enum import (  # type: ignore
+    EM_A_NET_EM_ACCESS_CTL_FACE_SERVICE,
     EM_LOGIN_SPAC_CAP_TYPE,
     EM_NET_RECORD_TYPE,
     CtrlType,
 )
 from NetSDK.SDK_Struct import (  # type: ignore
     NET_A_FIND_RECORD_ACCESSCTLCARD_CONDITION,
+    NET_ACCESS_FACE_INFO,
     NET_CTRL_RECORDSET_INSERT_IN,
     NET_CTRL_RECORDSET_INSERT_OUT,
     NET_CTRL_RECORDSET_INSERT_PARAM,
+    NET_IN_ACCESS_FACE_SERVICE_INSERT,
     NET_IN_FIND_NEXT_RECORD_PARAM,
     NET_IN_FIND_RECORD_PARAM,
     NET_IN_LOGIN_WITH_HIGHLEVEL_SECURITY,
+    NET_OUT_ACCESS_FACE_SERVICE_INSERT,
     NET_OUT_FIND_NEXT_RECORD_PARAM,
     NET_OUT_FIND_RECORD_PARAM,
     NET_OUT_LOGIN_WITH_HIGHLEVEL_SECURITY,
@@ -25,7 +28,8 @@ from NetSDK.SDK_Struct import (  # type: ignore
 )
 
 from app.types.dahua_netsdk_types import UserPayload
-from app.utils.dahua_converter import timestamp_to_net_time
+from app.utils.dahua_converter import net_time_to_timestamp, timestamp_to_net_time
+from app.utils.requests import get_face_image_url_to_bytes
 
 logger = structlog.get_logger(__name__)
 
@@ -62,7 +66,7 @@ class DahuaNetSDKService:
         device_port: int,
         username: str,
         password: str,
-    ):
+    ) -> int:
         """Login to the Dahua device."""
         logger.info("Logging in to Dahua device...")
         stInParam = NET_IN_LOGIN_WITH_HIGHLEVEL_SECURITY()
@@ -86,7 +90,7 @@ class DahuaNetSDKService:
         stOutParam.dwSize = sizeof(NET_OUT_LOGIN_WITH_HIGHLEVEL_SECURITY)
 
         # Attempt login
-        login_id, device_info, error_msg = self.sdk.LoginWithHighLevelSecurity(  # type: ignore
+        login_id, _, error_msg = self.sdk.LoginWithHighLevelSecurity(  # type: ignore
             stInParam, stOutParam
         )
 
@@ -109,7 +113,11 @@ class DahuaNetSDKService:
         if self.sessions[device_code] <= 0:
             raise Exception("Device offline")
 
-    def add_user(self, device_code: str, payload: UserPayload):
+    def add_user(
+        self,
+        device_code: str,
+        payload: UserPayload,
+    ):
         self._validate_login(device_code)
 
         login_id = self.sessions[device_code]
@@ -206,7 +214,8 @@ class DahuaNetSDKService:
 
             if result > 0:
                 return True
-            return False
+
+            raise Exception(self.sdk.GetLastErrorMessage())
 
         except Exception as e:
             print(f"✗ Exception occurred while adding user: {e}")
@@ -216,6 +225,63 @@ class DahuaNetSDKService:
 
             logger.error("Error occurred while adding user", error=str(e))
             raise e
+
+    def add_face(self, device_code: str, user_id: str, face_photo_url: str):
+        """Add a face to a user."""
+        self._validate_login(device_code)
+
+        login_id = self.sessions[device_code]
+
+        face_data = get_face_image_url_to_bytes(face_photo_url)
+
+        pstInParam = NET_IN_ACCESS_FACE_SERVICE_INSERT()
+        pstInParam.dwSize = sizeof(NET_IN_ACCESS_FACE_SERVICE_INSERT)
+        pstInParam.nFaceInfoNum = 1  # Number of face records to add
+
+        # Create face info structure
+        faceInfo = NET_ACCESS_FACE_INFO()
+        faceInfo.szUserID = user_id.encode()  # User ID (must match existing user)
+
+        # Set up face photo data
+        faceInfo.nFacePhoto = 1  # Number of face photos (1 photo)
+        faceInfo.nInFacePhotoLen[0] = len(face_data)  # Input photo length
+        faceInfo.nOutFacePhotoLen[0] = len(face_data)  # Expected output length
+
+        # Allocate buffer for image data and keep reference
+        image_buffer = ctypes.create_string_buffer(face_data, len(face_data))
+        faceInfo.pFacePhoto[0] = ctypes.cast(image_buffer, ctypes.c_void_p)
+
+        # Create array of face info (even though we only have 1)
+        face_info_array = (NET_ACCESS_FACE_INFO * 1)()
+        face_info_array[0] = faceInfo
+
+        # Assign face info array to input parameter
+        pstInParam.pFaceInfo = ctypes.cast(
+            face_info_array, ctypes.POINTER(NET_ACCESS_FACE_INFO)
+        )
+
+        # Create output parameter structure
+        pstOutParam = NET_OUT_ACCESS_FACE_SERVICE_INSERT()
+        pstOutParam.dwSize = sizeof(NET_OUT_ACCESS_FACE_SERVICE_INSERT)
+        pstOutParam.nMaxRetNum = 1  # Maximum return number (should match input count)
+
+        # Allocate memory for failure codes (in case of errors)
+        fail_codes = (ctypes.c_int * 1)()
+        pstOutParam.pFailCode = ctypes.cast(fail_codes, ctypes.POINTER(ctypes.c_int))
+
+        result = self.sdk.OperateAccessFaceService(  # type: ignore
+            login_id,
+            EM_A_NET_EM_ACCESS_CTL_FACE_SERVICE.NET_EM_ACCESS_CTL_FACE_SERVICE_INSERT,
+            pstInParam,
+            pstOutParam,
+            5000,  # Timeout in milliseconds
+        )
+
+        print("result", result)
+
+        if result <= 0:  # type: ignore
+            raise Exception(self.sdk.GetLastErrorMessage())
+        return True
 
     def listen_server(
         self,
@@ -241,17 +307,17 @@ class DahuaNetSDKService:
             logger.error("Error occurred while listening on server", error=str(e))
             raise e
 
-    def find_card(self, device_code: str, user_id: Optional[str]):
+    def find_card(self, device_code: str, user_id: Optional[str] = None):
         self._validate_login(device_code)
         login_id = self.sessions[device_code]
         find_condition = NET_A_FIND_RECORD_ACCESSCTLCARD_CONDITION()
         find_condition.dwSize = sizeof(NET_A_FIND_RECORD_ACCESSCTLCARD_CONDITION)
-
         if user_id:
+            find_condition.abUserID = 1
             find_condition.szUserID = user_id.encode()
-
         st_in = NET_IN_FIND_RECORD_PARAM()
         st_in.dwSize = sizeof(NET_IN_FIND_RECORD_PARAM)
+        st_in.emType = EM_NET_RECORD_TYPE.ACCESSCTLCARD
         if user_id:
             st_in.pQueryCondition = ctypes.cast(
                 ctypes.pointer(find_condition), ctypes.c_void_p
@@ -260,18 +326,71 @@ class DahuaNetSDKService:
         st_out = NET_OUT_FIND_RECORD_PARAM()
         st_out.dwSize = sizeof(NET_OUT_FIND_RECORD_PARAM)
 
-        result = self.sdk.FindRecord(login_id, st_in, st_out)
+        self.sdk.FindRecord(login_id, st_in, st_out)
+        return st_out.lFindeHandle
 
-        return result
+    def find_next_card(
+        self, finde_handle: Any, find_count: int
+    ) -> Optional[List[NET_RECORDSET_ACCESS_CTL_CARD]]:
+        try:
+            st_in = NET_IN_FIND_NEXT_RECORD_PARAM()
+            st_in.dwSize = sizeof(NET_IN_FIND_NEXT_RECORD_PARAM)
+            st_in.lFindeHandle = finde_handle
+            st_in.nFileCount = find_count
 
-    def find_user(self, device_code: str, user_id: Optional[str]):
+            st_out = NET_OUT_FIND_NEXT_RECORD_PARAM()
+            st_out.dwSize = sizeof(NET_OUT_FIND_NEXT_RECORD_PARAM)
+            st_out.nMaxRecordNum = find_count
+            result = self.sdk.FindNextRecord(st_in, st_out, 5000)
+
+            if not result:
+                logger.warning("FindNextRecord failed")
+                return None
+
+            record_count = st_out.nRetRecordNum
+
+            if record_count == 0:
+                logger.info("No records found")
+                return None
+
+            # Extract records from pRecordList pointer similar to Java implementation
+            records: List[NET_RECORDSET_ACCESS_CTL_CARD] = []
+            if st_out.pRecordList:
+                # Calculate the size of each record
+                record_size = sizeof(NET_RECORDSET_ACCESS_CTL_CARD)
+
+                for i in range(record_count):
+                    # Calculate offset for each record
+                    offset = i * record_size
+
+                    # Create a new record structure
+                    record = NET_RECORDSET_ACCESS_CTL_CARD()
+
+                    # Copy data from the pointer to the structure
+                    ctypes.memmove(
+                        ctypes.addressof(record),
+                        st_out.pRecordList + offset,
+                        record_size,
+                    )
+
+                    records.append(record)
+
+            logger.info(f"Found {record_count} records")
+            return records
+
+        except Exception as e:
+            logger.error("Error occurred while finding next card", error=str(e))
+            raise e
+
+    def find_user(self, device_code: str, user_id: Optional[str] = None):
         self._validate_login(device_code)
 
         finde_handle = self.find_card(device_code, user_id)
-
+        print("finde_handle", finde_handle)
         st_in = NET_IN_FIND_NEXT_RECORD_PARAM()
         st_in.dwSize = sizeof(NET_IN_FIND_NEXT_RECORD_PARAM)
         st_in.lFindeHandle = finde_handle
+        st_in.nFileCount = 50
 
         st_out = NET_OUT_FIND_NEXT_RECORD_PARAM()
         st_out.dwSize = sizeof(NET_OUT_FIND_NEXT_RECORD_PARAM)
@@ -281,15 +400,62 @@ class DahuaNetSDKService:
         print("st_out", st_out)
         return result
 
-    # def list_users(self, device_code: str) -> list[UserPayload]:
-    #     """List users for a specific device."""
-    #     self._validate_login(device_code)
+    def list_users(self, device_code: str) -> list[UserPayload]:
+        """List users for a specific device."""
+        self._validate_login(device_code)
 
-    #     try:
-    #         result = self.sdk.ListUsers(device_code)
-    #         if result:
-    #             return [UserPayload(**user) for user in result]
-    #         return []
-    #     except Exception as e:
-    #         logger.error("Error occurred while listing users", error=str(e))
-    #         raise e
+        n_find_count = 50
+        try:
+            finde_handle = self.find_card(device_code)
+            records = self.find_next_card(finde_handle, n_find_count)
+
+            if not records:
+                return []
+
+            # Convert NET_RECORDSET_ACCESS_CTL_CARD records to UserPayload objects
+            users: List[UserPayload] = []
+            for record in records:
+                try:
+                    user = UserPayload(
+                        card_name=record.szCardName.decode(
+                            "utf-8", errors="ignore"
+                        ).rstrip("\x00"),
+                        card_no=record.szCardNo.decode("utf-8", errors="ignore").rstrip(
+                            "\x00"
+                        ),
+                        user_id=record.szUserID.decode("utf-8", errors="ignore").rstrip(
+                            "\x00"
+                        ),
+                        sz_pw=(
+                            record.szPsw.decode("utf-8", errors="ignore").rstrip("\x00")
+                            if record.szPsw
+                            else None
+                        ),
+                        valid_start_time=(
+                            net_time_to_timestamp(record.stuValidStartTime)
+                            if hasattr(record, "stuValidStartTime")
+                            else None
+                        ),
+                        valid_end_time=(
+                            net_time_to_timestamp(record.stuValidEndTime)
+                            if hasattr(record, "stuValidEndTime")
+                            else None
+                        ),
+                        first_enter=bool(record.bFirstEnter),
+                        citizen_id_no=(
+                            record.szCitizenIDNo.decode(
+                                "utf-8", errors="ignore"
+                            ).rstrip("\x00")
+                            if record.szCitizenIDNo
+                            else None
+                        ),
+                    )
+                    users.append(user)
+                except Exception as e:
+                    logger.warning(f"Failed to parse record: {e}")
+                    continue
+
+            return users
+        except Exception as e:
+            logger.error("Error occurred while listing users", error=str(e))
+            raise e

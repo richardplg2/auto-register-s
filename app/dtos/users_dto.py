@@ -19,8 +19,12 @@ class UserPayload(BaseModel):
 
 
 class AddUserPayload(UserPayload):
-    pass
+    face_image_url: Optional[str] = Field(description="The URL of the face image")
 
 
 class UpdateUserPayload(UserPayload):
-    pass
+    face_image_url: Optional[str] = Field(description="The URL of the face image")
+
+
+class AddFacePayload(BaseModel):
+    face_image_url: str = Field(description="The URL of the face image to add")
