@@ -30,6 +30,7 @@ from NetSDK.SDK_Struct import (  # type: ignore
     NET_OUT_FIND_RECORD_PARAM,
     NET_OUT_LOGIN_WITH_HIGHLEVEL_SECURITY,
     NET_RECORDSET_ACCESS_CTL_CARD,
+    NET_RECORDSET_ACCESS_CTL_CARDREC,
 )
 
 from app.types.dahua_netsdk_types import UserPayload
@@ -399,32 +400,32 @@ class DahuaNetSDKService:
 
             # Extract records from pRecordList pointer similar to Java implementation
             records: List[NET_RECORDSET_ACCESS_CTL_CARD] = []
-            if st_out.pRecordList:
-                # Calculate the size of each record
-                record_size = sizeof(NET_RECORDSET_ACCESS_CTL_CARD)
 
-                for i in range(record_count):
-                    # Calculate offset for each record
-                    offset = i * record_size
-
-                    # Create a new record structure
-                    record = NET_RECORDSET_ACCESS_CTL_CARD()
-
-                    # Copy data from the pointer to the structure
-                    ctypes.memmove(
-                        ctypes.addressof(record),
-                        st_out.pRecordList + offset,
-                        record_size,
-                    )
-
-                    records.append(record)
-
-            logger.info(f"Found {record_count} records")
             return records
 
         except Exception as e:
             logger.error("Error occurred while finding next card", error=str(e))
             raise e
+
+    def find_next_record(
+        self, finde_handle: Any, find_count: int
+    ) -> Optional[NET_OUT_FIND_NEXT_RECORD_PARAM]:
+        pst_record = (NET_RECORDSET_ACCESS_CTL_CARDREC * find_count)()
+
+        st_next_in = NET_IN_FIND_NEXT_RECORD_PARAM()
+        st_next_in.dwSize = sizeof(NET_IN_FIND_NEXT_RECORD_PARAM)
+        st_next_in.lFindeHandle = finde_handle
+        st_next_in.nFileCount = find_count
+
+        st_next_out = NET_OUT_FIND_NEXT_RECORD_PARAM()
+        st_next_out.dwSize = sizeof(NET_OUT_FIND_NEXT_RECORD_PARAM)
+        st_next_out.nMaxRecordNum = find_count
+        st_next_out.pRecordList = ctypes.cast(pst_record, ctypes.c_void_p)
+
+        result = self.sdk.FindNextRecord(st_next_in, st_next_out, 5000)
+        if result == 1:
+            return st_next_out
+        return None
 
     def find_user(self, device_code: str, user_id: Optional[str] = None):
         self._validate_login(device_code)
@@ -520,6 +521,30 @@ class DahuaNetSDKService:
             logger.error("Error occurred while listing users", error=str(e))
             raise e
 
+    def get_records_from_pointer(
+        self, st_next_out: NET_OUT_FIND_NEXT_RECORD_PARAM
+    ) -> List[NET_RECORDSET_ACCESS_CTL_CARDREC]:
+        """
+        Extract records from C pointer - equivalent to Java's GetPointerDataToStructArr
+        """
+        records: List[NET_RECORDSET_ACCESS_CTL_CARDREC] = []
+
+        if not st_next_out.pRecordList or st_next_out.nRetRecordNum == 0:
+            return records
+
+        # Cast the pointer to the appropriate type
+        record_ptr = ctypes.cast(
+            st_next_out.pRecordList, ctypes.POINTER(NET_RECORDSET_ACCESS_CTL_CARDREC)
+        )
+
+        # Extract each record from the pointer array
+        for i in range(st_next_out.nRetRecordNum):
+            # Get the record at index i
+            record = record_ptr[i]
+            records.append(record)
+
+        return records
+
     def find_records(
         self,
         device_code: str,
@@ -528,7 +553,7 @@ class DahuaNetSDKService:
         end_time: Optional[int] = None,
         n_rec: Optional[int] = 1,
         by_asc_order: Optional[bool] = True,
-    ):
+    ) -> List[NET_RECORDSET_ACCESS_CTL_CARDREC]:
         self._validate_login(device_code)
         login_id = self.sessions[device_code]
         find_condition = NET_FIND_RECORD_ACCESSCTLCARDREC_CONDITION_EX()
@@ -558,11 +583,62 @@ class DahuaNetSDKService:
         st_in = NET_IN_FIND_RECORD_PARAM()
         st_in.dwSize = sizeof(NET_IN_FIND_RECORD_PARAM)
         st_in.emType = EM_NET_RECORD_TYPE.ACCESSCTLCARDREC_EX
-        st_in.pQueryCondition = ctypes.byref(find_condition)
+        st_in.pQueryCondition = ctypes.cast(
+            ctypes.pointer(find_condition), ctypes.c_void_p
+        )
 
         st_out = NET_OUT_FIND_RECORD_PARAM()
         st_out.dwSize = sizeof(NET_OUT_FIND_RECORD_PARAM)
 
         find_record_result = self.sdk.FindRecord(login_id, st_in, st_out, 5000)
+        if not find_record_result:
+            return []
 
-        print("find_record_result", find_record_result)
+        ### Find next record
+        n_remain_records_to_find = 0
+        max_records_find_for_each_request = 2000
+
+        if n_rec and n_rec > 0:
+            max_records_find_for_each_request = n_rec if n_rec < 2000 else 2000
+            n_remain_records_to_find = n_rec
+        else:
+            n_remain_records_to_find = 100000
+
+        # List to store all records
+        pst_record_ex_list: List[NET_RECORDSET_ACCESS_CTL_CARDREC] = []
+
+        # Implement do-while loop logic equivalent in Python
+        while True:
+            print(
+                "max_records_find_for_each_request", max_records_find_for_each_request
+            )
+            st_next_out = self.find_next_record(
+                st_out.lFindeHandle, max_records_find_for_each_request
+            )
+
+            if st_next_out is not None:
+                print("st_next_out", st_next_out.nRetRecordNum)
+
+                if st_next_out.nRetRecordNum == 0:
+                    break
+
+                # Get card info - Process the records from pRecordList
+                # This is equivalent to Java's GetPointerDataToStructArr
+                records = self.get_records_from_pointer(st_next_out)
+                print("records count:", len(records))
+
+                # Add records to result list
+                for record in records:
+                    pst_record_ex_list.append(record)
+                    n_remain_records_to_find -= 1
+
+                    if n_remain_records_to_find == 0:
+                        break
+            else:
+                break
+
+            # Continue while we haven't found enough records and there are still records available
+            if st_next_out.nRetRecordNum == 0 or n_remain_records_to_find <= 0:
+                break
+
+        return pst_record_ex_list
