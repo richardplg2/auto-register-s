@@ -33,3 +33,5 @@ class Device(BaseModel):
     # Auto-discovery info
     last_connected_at = Column(DateTime, nullable=True)
     last_disconnected_at = Column(DateTime, nullable=True)
+
+    enabled_access_control_event = Column(Boolean, default=False, nullable=False)

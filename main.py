@@ -77,6 +77,9 @@ def create_app() -> FastAPI:
 
     app.state.container = container
 
+    # Wire the container to the app modules for dependency injection
+    container.wire(modules=["app.apis.v1.users", "app.apis.v1.devices"])
+
     # Add CORS middleware
     app.add_middleware(
         CORSMiddleware,

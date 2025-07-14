@@ -73,7 +73,7 @@ class DeviceAutoRegisterHandler(EventHandler):
             print(f"Login ID: {login_id}")
 
             updates: dict[Any, Any] = {
-                "is_online": True,
+                "is_online": login_id > 0,
                 "last_connected_at": datetime.now(),
                 "ip": ip,
                 "port": port,
