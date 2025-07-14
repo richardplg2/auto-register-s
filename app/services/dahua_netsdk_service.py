@@ -6,6 +6,7 @@ import structlog
 from NetSDK.NetSDK import NetClient  # type: ignore
 from NetSDK.SDK_Enum import (  # type: ignore
     EM_A_NET_EM_ACCESS_CTL_FACE_SERVICE,
+    EM_A_NET_EM_ACCESS_CTL_USER_SERVICE,
     EM_LOGIN_SPAC_CAP_TYPE,
     EM_NET_RECORD_TYPE,
     CtrlType,
@@ -16,11 +17,15 @@ from NetSDK.SDK_Struct import (  # type: ignore
     NET_CTRL_RECORDSET_INSERT_IN,
     NET_CTRL_RECORDSET_INSERT_OUT,
     NET_CTRL_RECORDSET_INSERT_PARAM,
+    NET_FIND_RECORD_ACCESSCTLCARDREC_CONDITION_EX,
+    NET_FIND_RECORD_ACCESSCTLCARDREC_ORDER,
     NET_IN_ACCESS_FACE_SERVICE_INSERT,
+    NET_IN_ACCESS_USER_SERVICE_GET,
     NET_IN_FIND_NEXT_RECORD_PARAM,
     NET_IN_FIND_RECORD_PARAM,
     NET_IN_LOGIN_WITH_HIGHLEVEL_SECURITY,
     NET_OUT_ACCESS_FACE_SERVICE_INSERT,
+    NET_OUT_ACCESS_USER_SERVICE_GET,
     NET_OUT_FIND_NEXT_RECORD_PARAM,
     NET_OUT_FIND_RECORD_PARAM,
     NET_OUT_LOGIN_WITH_HIGHLEVEL_SECURITY,
@@ -207,7 +212,7 @@ class DahuaNetSDKService:
             # Call the SDK function to insert record
             result = self.sdk.ControlDevice(
                 login_id,
-                CtrlType.RECORDSET_INSERT,
+                CtrlType.RECORDSET_UPDATE,
                 stInParam,  # type: ignore
                 5000,  # Timeout in milliseconds
             )
@@ -225,6 +230,41 @@ class DahuaNetSDKService:
 
             logger.error("Error occurred while adding user", error=str(e))
             raise e
+
+    def update_user(
+        self,
+        device_code: str,
+        payload: UserPayload,
+    ):
+        """
+        Update user information.
+        """
+        self._validate_login(device_code)
+
+        login_id = self.sessions[device_code]
+
+        stInParam = NET_IN_ACCESS_CTL_USER_UPDATE()
+        stInParam.dwSize = sizeof(NET_IN_ACCESS_CTL_USER_UPDATE)
+
+        # Fill in user information
+        stInParam.szUserID = payload.user_id.encode()
+        stInParam.szName = payload.name.encode()
+        stInParam.szDepartment = payload.department.encode()
+        stInParam.szPosition = payload.position.encode()
+        stInParam.szPhone = payload.phone.encode()
+        stInParam.szEmail = payload.email.encode()
+
+        result = self.sdk.ControlDevice(
+            login_id,
+            CtrlType.RECORDSET_UPDATE,
+            stInParam,
+            5000,
+        )
+
+        if result > 0:
+            return True
+
+        raise Exception(self.sdk.GetLastErrorMessage())
 
     def add_face(self, device_code: str, user_id: str, face_photo_url: str):
         """Add a face to a user."""
@@ -343,6 +383,10 @@ class DahuaNetSDKService:
             st_out.nMaxRecordNum = find_count
             result = self.sdk.FindNextRecord(st_in, st_out, 5000)
 
+            print("result", result)
+            print("msg", self.sdk.GetLastErrorMessage())
+            print("st_out", st_out.nRetRecordNum)
+
             if not result:
                 logger.warning("FindNextRecord failed")
                 return None
@@ -386,19 +430,35 @@ class DahuaNetSDKService:
         self._validate_login(device_code)
 
         finde_handle = self.find_card(device_code, user_id)
-        print("finde_handle", finde_handle)
-        st_in = NET_IN_FIND_NEXT_RECORD_PARAM()
-        st_in.dwSize = sizeof(NET_IN_FIND_NEXT_RECORD_PARAM)
-        st_in.lFindeHandle = finde_handle
-        st_in.nFileCount = 50
 
-        st_out = NET_OUT_FIND_NEXT_RECORD_PARAM()
-        st_out.dwSize = sizeof(NET_OUT_FIND_NEXT_RECORD_PARAM)
+        records = self.find_next_card(finde_handle, 1)
 
-        result = self.sdk.FindNextRecord(st_in, st_out, 5000)
+        if not records:
+            return None
 
-        print("st_out", st_out)
-        return result
+        return records[0]
+
+    def find_user_v2(self, device_code: str, user_id: str):
+        self._validate_login(device_code)
+        login_id = self.sessions[device_code]
+        st_in = NET_IN_ACCESS_USER_SERVICE_GET()
+        st_in.dwSize = sizeof(NET_IN_ACCESS_USER_SERVICE_GET)
+        st_in.szUserID = user_id.encode()
+        st_in.nUserNum = 1
+
+        st_out = NET_OUT_ACCESS_USER_SERVICE_GET()
+        st_out.dwSize = sizeof(NET_OUT_ACCESS_USER_SERVICE_GET)
+        st_out.nMaxRetNum = 1
+
+        result = self.sdk.OperateAccessUserService(
+            login_id,
+            EM_A_NET_EM_ACCESS_CTL_USER_SERVICE.NET_EM_ACCESS_CTL_USER_SERVICE_GET,
+            st_in,
+            st_out,
+            5000,
+        )
+
+        return st_out
 
     def list_users(self, device_code: str) -> list[UserPayload]:
         """List users for a specific device."""
@@ -459,3 +519,50 @@ class DahuaNetSDKService:
         except Exception as e:
             logger.error("Error occurred while listing users", error=str(e))
             raise e
+
+    def find_records(
+        self,
+        device_code: str,
+        card_no: Optional[str] = None,
+        start_time: Optional[int] = None,
+        end_time: Optional[int] = None,
+        n_rec: Optional[int] = 1,
+        by_asc_order: Optional[bool] = True,
+    ):
+        self._validate_login(device_code)
+        login_id = self.sessions[device_code]
+        find_condition = NET_FIND_RECORD_ACCESSCTLCARDREC_CONDITION_EX()
+        find_condition.dwSize = sizeof(NET_FIND_RECORD_ACCESSCTLCARDREC_CONDITION_EX)
+        if card_no:
+            find_condition.bCardNoEnable = 1
+            find_condition.szCardNo = card_no.encode()
+        else:
+            find_condition.bCardNoEnable = 0
+        if start_time and end_time:
+            find_condition.bTimeEnable = 1
+            find_condition.stStartTime = timestamp_to_net_time(start_time)
+            find_condition.stEndTime = timestamp_to_net_time(end_time)
+        else:
+            find_condition.bTimeEnable = 0
+
+        find_order = NET_FIND_RECORD_ACCESSCTLCARDREC_ORDER()
+        find_order.emField = 1
+        if by_asc_order:
+            find_order.emOrderType = 1
+        else:
+            find_order.emOrderType = 2
+
+        find_condition.nOrderNum = 1
+        find_condition.stuOrders[0] = find_order
+
+        st_in = NET_IN_FIND_RECORD_PARAM()
+        st_in.dwSize = sizeof(NET_IN_FIND_RECORD_PARAM)
+        st_in.emType = EM_NET_RECORD_TYPE.ACCESSCTLCARDREC_EX
+        st_in.pQueryCondition = ctypes.byref(find_condition)
+
+        st_out = NET_OUT_FIND_RECORD_PARAM()
+        st_out.dwSize = sizeof(NET_OUT_FIND_RECORD_PARAM)
+
+        find_record_result = self.sdk.FindRecord(login_id, st_in, st_out, 5000)
+
+        print("find_record_result", find_record_result)

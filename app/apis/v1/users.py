@@ -67,7 +67,7 @@ async def get_user(
     """Get a specific user for a device."""
     try:
         print("get user id====")
-        user = dahua_net_sdk_service.find_user(device_code)
+        user = dahua_net_sdk_service.find_user(device_code, user_id)
         return user
     except Exception as e:
         return {"error": str(e)}

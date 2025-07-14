@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from app.core.containers import Container
 from app.dtos.devices_dto import DevicePayload, UpdateDevicePayload
 from app.repos.device_repo import DeviceRepo
+from app.services.dahua_netsdk_service import DahuaNetSDKService
 
 router = APIRouter(prefix="/devices", tags=["devices"])
 
@@ -83,5 +84,22 @@ async def delete_device(
     try:
         await device_repo.delete_device_by_code(device_code)
         return {"detail": "Device deleted successfully"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+
+
+@router.get("/{device_code}/recordings")
+@inject
+async def get_device_recordings(
+    device_code: str,
+    dahua_net_sdk_service: DahuaNetSDKService = Depends(
+        Provide[Container.dahua_netsdk_service]
+    ),
+):
+    """Get device recordings by device code using dependency injection."""
+    try:
+        dahua_net_sdk_service.find_records(device_code)
+
+        return [1]
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
