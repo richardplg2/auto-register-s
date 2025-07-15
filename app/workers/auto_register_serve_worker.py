@@ -1,20 +1,23 @@
 import ctypes
 import time
+from typing import TYPE_CHECKING
 
 from NetSDK.SDK_Callback import fServiceCallBack  # type: ignore
 from NetSDK.SDK_Enum import EM_AUTOREGISTER_TYPE  # type: ignore
 
-from app.core.containers import Container
 from app.core.events import DeviceAutoRegisterEvent
 from app.core.settings import get_settings
 from app.workers.base_worker import BaseWorker
+
+if TYPE_CHECKING:
+    from app.core.containers import Container
 
 settings = get_settings()
 
 
 class AutoRegisterServeWorker(BaseWorker):
 
-    def __init__(self, container: Container) -> None:
+    def __init__(self, container: "Container") -> None:
         super().__init__("auto-register-serve-worker")
         self.dahua_netsdk_service = container.dahua_netsdk_service()
         self.event_bus = container.event_bus()

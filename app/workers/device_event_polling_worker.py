@@ -1,15 +1,18 @@
 import asyncio
+from typing import TYPE_CHECKING
 
 import structlog
 
-from app.core.containers import Container
+if TYPE_CHECKING:
+    from app.core.containers import Container
+
 from app.workers.base_worker import BaseWorker
 
 
 class DeviceEventPollingWorker(BaseWorker):
     """Worker for polling events from a specific device"""
 
-    def __init__(self, device_code: str, container: Container):
+    def __init__(self, device_code: str, container: "Container"):
         super().__init__(name=f"device_event_polling_{device_code}")
         self.device_code = device_code
         self.polling_interval = 5

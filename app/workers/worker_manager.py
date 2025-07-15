@@ -1,16 +1,18 @@
 import threading
 from datetime import datetime
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
 from uuid import UUID, uuid4
 
 import structlog
 
-from app.core.containers import Container
 from app.workers.auto_register_serve_worker import AutoRegisterServeWorker
 from app.workers.base_worker import BaseWorker
 from app.workers.device_event_polling_worker import DeviceEventPollingWorker
 from app.workers.event_polling_worker import EventPollingWorker
 from app.workers.worker_types import WorkerType
+
+if TYPE_CHECKING:
+    from app.core.containers import Container
 
 
 class WorkerInstance:
@@ -45,13 +47,15 @@ class WorkerManager:
     def __init__(
         self,
     ):
-        self.container: Container | None = None
+        self.container: "Container | None" = None
         self.lock = threading.Lock()
         self.worker_instances: list[WorkerInstance] = []
         self.running = False
         self.logger = structlog.get_logger(__name__)
 
-    def init(self, container: Container):
+    def init(self, container: "Container"):
+        from app.core.containers import Container
+
         self.container = container
         # Pass container to workers that need it
 
