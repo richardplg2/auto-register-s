@@ -8,7 +8,6 @@ import structlog
 from app.workers.auto_register_serve_worker import AutoRegisterServeWorker
 from app.workers.base_worker import BaseWorker
 from app.workers.device_event_polling_worker import DeviceEventPollingWorker
-from app.workers.event_polling_worker import EventPollingWorker
 from app.workers.worker_types import WorkerType
 
 if TYPE_CHECKING:
@@ -58,7 +57,6 @@ class WorkerManager:
         # Pass container to workers that need it
 
         self.add_worker(WorkerType.MAIN, AutoRegisterServeWorker(container))
-        self.add_worker(WorkerType.MAIN, EventPollingWorker())
 
     def add_worker(
         self,

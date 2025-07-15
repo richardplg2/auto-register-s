@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Optional
+from typing import Any, Optional
 
 from NetSDK.SDK_Enum import EM_AUTOREGISTER_TYPE  # type: ignore
 from NetSDK.SDK_Struct import NET_RECORDSET_ACCESS_CTL_CARDREC  # type: ignore
@@ -83,6 +83,22 @@ class AccessCardRecord:
         self.current_temperature = current_temperature
         self.em_mask = em_mask
         self.image_url = image_url
+
+    def to_webhook_payload(self) -> dict[str, Any]:
+        return {
+            "CardName": self.card_name,
+            "CreateTime": "",
+            "CurrentTemperature": self.current_temperature,
+            "ErrorCode": self.error_code,
+            "IsOverTemperature": self.is_over_temparature,
+            "Mask": self.em_mask,
+            "Method": self.method,
+            "RecNo": self.rec_no,
+            "Status": self.b_status,
+            "TemperatureUnit": self.temperature_unit,
+            "ImageURL": self.image_url,
+            "UserID": self.user_id,
+        }
 
     def image_name(self):
         return f"{self.card_no}_{self.rec_no}.jpg"

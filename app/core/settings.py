@@ -72,6 +72,11 @@ class Settings(BaseSettings):
     AWS_REGION: str = Field(default="us-east-1", description="AWS region")
     AWS_S3_BUCKET: str = Field(default="your_s3_bucket", description="S3 bucket name")
 
+    WEBHOOK_URL: str = Field(
+        default="https://webhook.site/3ed2a781-985e-4f50-be2a-18f352d1a258",
+        description="Webhook URL",
+    )
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",

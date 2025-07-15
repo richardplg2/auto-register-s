@@ -2,6 +2,7 @@ import asyncio
 from typing import TYPE_CHECKING, Any, Dict, Optional
 
 import aioboto3  # type: ignore
+import httpx
 import structlog
 
 if TYPE_CHECKING:
@@ -100,8 +101,22 @@ class DeviceEventPollingWorker(BaseWorker):
 
     async def _send_wakeup_interval(self):
         while not self.should_stop:
-            self.polling_wakeup_event.set()
-            await asyncio.sleep(self.polling_interval)
+            try:
+                self.polling_wakeup_event.set()
+                await asyncio.sleep(self.polling_interval)
+            except asyncio.CancelledError:
+                self.logger.info(
+                    "Wakeup interval cancelled", device_code=self.device_code
+                )
+                break
+            except Exception as e:
+                self.logger.error(
+                    "Error in wakeup interval",
+                    device_code=self.device_code,
+                    error=str(e),
+                    exc_info=True,
+                )
+                break
 
     async def _event_polling_loop(self):
         while not self.should_stop:
@@ -123,14 +138,14 @@ class DeviceEventPollingWorker(BaseWorker):
     async def _process_new_events_loop(self):
         while not self.should_stop:
             try:
-                print("Processing new events for device", self.device_code)
                 new_access_card_event = await asyncio.wait_for(
                     self.new_events_queue.get(), timeout=10
                 )
 
                 await self._process_new_event(new_access_card_event)
-                await asyncio.sleep(1)
 
+            except asyncio.TimeoutError:
+                continue
             except asyncio.CancelledError:
                 self.logger.info(
                     "Event processing cancelled", device_code=self.device_code
@@ -169,7 +184,23 @@ class DeviceEventPollingWorker(BaseWorker):
                     image_url=event.image_url,
                 )
 
+        await self._send_event_to_webhook(event)
+
         self.last_uploaded_rec_no = event.rec_no
+
+    async def _send_event_to_webhook(self, event: AccessCardRecord) -> None:
+        """Send event data to the configured webhook URL."""
+        webhook_url = settings.WEBHOOK_URL
+
+        async with httpx.AsyncClient() as client:
+            response = await client.post(webhook_url, json=event.to_webhook_payload())
+            if response.status_code != 200:
+                self.logger.error(
+                    "Failed to send event to webhook",
+                    device_code=self.device_code,
+                    event=event.to_webhook_payload(),
+                    status=response.status_code,
+                )
 
     async def _upload_image_to_s3(self, file_name: str, data_raw: bytes) -> str | None:
         """Upload image to the s3."""
@@ -195,7 +226,7 @@ class DeviceEventPollingWorker(BaseWorker):
         )
 
         latest_records = self.dahua_netsdk_service.find_records(
-            self.device_code, None, None, None, 1, True
+            self.device_code, None, None, None, 1, False
         )
 
         if len(latest_records) == 0:
@@ -228,6 +259,10 @@ class DeviceEventPollingWorker(BaseWorker):
             self.logger.info("No new events found", device_code=self.device_code)
             return
 
+        self.logger.info(
+            "New events found", device_code=self.device_code, records=len(records)
+        )
+
         for record in records:
             if record.rec_no <= self.last_uploaded_rec_no:
                 self.logger.warn(
@@ -237,11 +272,11 @@ class DeviceEventPollingWorker(BaseWorker):
                 )
                 continue
 
-            self.logger.info(
-                "New event found",
-                device_code=self.device_code,
-                rec_no=record.rec_no,
-            )
+            # self.logger.info(
+            #     "New event found",
+            #     device_code=self.device_code,
+            #     rec_no=record.rec_no,
+            # )
 
             self.new_events_queue.put_nowait(record)
 

@@ -623,10 +623,6 @@ class DahuaNetSDKService:
 
         # Implement do-while loop logic equivalent in Python
         while True:
-            print(
-                "find next record: max_records_find_for_each_request",
-                max_records_find_for_each_request,
-            )
             st_next_out = self.find_next_record(
                 st_out.lFindeHandle, max_records_find_for_each_request
             )
@@ -697,10 +693,7 @@ class DahuaNetSDKService:
 
         # Implement do-while loop logic equivalent in Python
         while True:
-            print(
-                "find next record: max_records_find_for_each_request",
-                max_records_find_for_each_request,
-            )
+
             st_next_out = self.find_next_record(
                 st_out.lFindeHandle, max_records_find_for_each_request
             )
