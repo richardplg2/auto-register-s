@@ -1,39 +1,12 @@
-import ctypes
-from ctypes import sizeof
 from typing import Any, List, Optional
 
 import structlog
 from NetSDK.NetSDK import NetClient  # type: ignore
-from NetSDK.SDK_Enum import (  # type: ignore
-    EM_A_NET_EM_ACCESS_CTL_FACE_SERVICE,
-    EM_A_NET_EM_ACCESS_CTL_USER_SERVICE,
-    EM_LOGIN_SPAC_CAP_TYPE,
-    EM_NET_RECORD_TYPE,
-    CtrlType,
-)
-from NetSDK.SDK_Struct import (  # type: ignore
-    NET_A_FIND_RECORD_ACCESSCTLCARD_CONDITION,
-    NET_ACCESS_FACE_INFO,
-    NET_CTRL_RECORDSET_INSERT_IN,
-    NET_CTRL_RECORDSET_INSERT_OUT,
-    NET_CTRL_RECORDSET_INSERT_PARAM,
-    NET_FIND_RECORD_ACCESSCTLCARDREC_CONDITION_EX,
-    NET_FIND_RECORD_ACCESSCTLCARDREC_ORDER,
-    NET_IN_ACCESS_FACE_SERVICE_INSERT,
-    NET_IN_ACCESS_USER_SERVICE_GET,
-    NET_IN_FIND_NEXT_RECORD_PARAM,
-    NET_IN_FIND_RECORD_PARAM,
-    NET_IN_LOGIN_WITH_HIGHLEVEL_SECURITY,
-    NET_OUT_ACCESS_FACE_SERVICE_INSERT,
-    NET_OUT_ACCESS_USER_SERVICE_GET,
-    NET_OUT_FIND_NEXT_RECORD_PARAM,
-    NET_OUT_FIND_RECORD_PARAM,
-    NET_OUT_LOGIN_WITH_HIGHLEVEL_SECURITY,
-    NET_RECORDSET_ACCESS_CTL_CARD,
-    NET_RECORDSET_ACCESS_CTL_CARDREC,
-)
+from NetSDK.SDK_Callback import *  # type: ignore
+from NetSDK.SDK_Enum import *  # type: ignore
+from NetSDK.SDK_Struct import *  # type: ignore
 
-from app.types.dahua_netsdk_types import UserPayload
+from app.types.dahua_netsdk_types import AccessCardRecord, UserPayload
 from app.utils.dahua_converter import net_time_to_timestamp, timestamp_to_net_time
 from app.utils.requests import get_face_image_url_to_bytes
 
@@ -60,10 +33,19 @@ class DahuaNetSDKService:
                 msg=self.sdk.GetLastErrorMessage(),
             )
 
+        self._setup_log()
+
     async def shutdown(self):
         logger.info("DahuaNetSDKService shutting down...")
         self.sdk.Cleanup()
         logger.info("DahuaNetSDKService shut down.")
+
+    def _setup_log(self):
+        log_info = LOG_SET_PRINT_INFO()
+        log_info.dwSize = sizeof(LOG_SET_PRINT_INFO)
+        log_info.bSetFilePath = 1
+        log_info.szLogFilePath = os.path.join(os.getcwd(), "sdk_log.log").encode("gbk")
+        result = self.sdk.LogOpen(log_info)
 
     def login(
         self,
@@ -86,9 +68,9 @@ class DahuaNetSDKService:
 
         def get_utf8_string_pointer(src: str):
             b = src.encode("utf-8")
-            buf = ctypes.create_string_buffer(len(b) + 1)
+            buf = create_string_buffer(len(b) + 1)
             buf.value = b
-            return ctypes.cast(buf, ctypes.c_void_p)
+            return cast(buf, c_void_p)
 
         stInParam.pCapParam = get_utf8_string_pointer(device_code)
 
@@ -197,9 +179,7 @@ class DahuaNetSDKService:
             card_record.nMultiTimeSectionsNum = 0
 
             # Set buffer pointer and length
-            stInParam.stuCtrlRecordSetInfo.pBuf = ctypes.cast(
-                ctypes.pointer(card_record), ctypes.c_void_p
-            )
+            stInParam.stuCtrlRecordSetInfo.pBuf = cast(pointer(card_record), c_void_p)
             stInParam.stuCtrlRecordSetInfo.nBufLen = sizeof(
                 NET_RECORDSET_ACCESS_CTL_CARD
             )
@@ -289,17 +269,15 @@ class DahuaNetSDKService:
         faceInfo.nOutFacePhotoLen[0] = len(face_data)  # Expected output length
 
         # Allocate buffer for image data and keep reference
-        image_buffer = ctypes.create_string_buffer(face_data, len(face_data))
-        faceInfo.pFacePhoto[0] = ctypes.cast(image_buffer, ctypes.c_void_p)
+        image_buffer = create_string_buffer(face_data, len(face_data))
+        faceInfo.pFacePhoto[0] = cast(image_buffer, c_void_p)
 
         # Create array of face info (even though we only have 1)
         face_info_array = (NET_ACCESS_FACE_INFO * 1)()
         face_info_array[0] = faceInfo
 
         # Assign face info array to input parameter
-        pstInParam.pFaceInfo = ctypes.cast(
-            face_info_array, ctypes.POINTER(NET_ACCESS_FACE_INFO)
-        )
+        pstInParam.pFaceInfo = cast(face_info_array, POINTER(NET_ACCESS_FACE_INFO))
 
         # Create output parameter structure
         pstOutParam = NET_OUT_ACCESS_FACE_SERVICE_INSERT()
@@ -307,8 +285,8 @@ class DahuaNetSDKService:
         pstOutParam.nMaxRetNum = 1  # Maximum return number (should match input count)
 
         # Allocate memory for failure codes (in case of errors)
-        fail_codes = (ctypes.c_int * 1)()
-        pstOutParam.pFailCode = ctypes.cast(fail_codes, ctypes.POINTER(ctypes.c_int))
+        fail_codes = (c_int * 1)()
+        pstOutParam.pFailCode = cast(fail_codes, POINTER(c_int))
 
         result = self.sdk.OperateAccessFaceService(  # type: ignore
             login_id,
@@ -354,39 +332,48 @@ class DahuaNetSDKService:
         find_condition = NET_A_FIND_RECORD_ACCESSCTLCARD_CONDITION()
         find_condition.dwSize = sizeof(NET_A_FIND_RECORD_ACCESSCTLCARD_CONDITION)
         if user_id:
+            print("use find condition")
             find_condition.abUserID = 1
             find_condition.szUserID = user_id.encode()
         st_in = NET_IN_FIND_RECORD_PARAM()
         st_in.dwSize = sizeof(NET_IN_FIND_RECORD_PARAM)
         st_in.emType = EM_NET_RECORD_TYPE.ACCESSCTLCARD
         if user_id:
-            st_in.pQueryCondition = ctypes.cast(
-                ctypes.pointer(find_condition), ctypes.c_void_p
-            )
+            st_in.pQueryCondition = cast(pointer(find_condition), c_void_p)
 
         st_out = NET_OUT_FIND_RECORD_PARAM()
         st_out.dwSize = sizeof(NET_OUT_FIND_RECORD_PARAM)
 
-        self.sdk.FindRecord(login_id, st_in, st_out)
+        result = self.sdk.FindRecord(login_id, st_in, st_out)
+        print("result", result)
         return st_out.lFindeHandle
 
     def find_next_card(
         self, finde_handle: Any, find_count: int
     ) -> Optional[List[NET_RECORDSET_ACCESS_CTL_CARD]]:
         try:
+            # 1. Tạo mảng struct giống như Java (tương đương với new NET_RECORDSET_ACCESS_CTL_CARD[nFindCount])
+            pst_record = (NET_RECORDSET_ACCESS_CTL_CARD * find_count)()
+
+            # 2. Khởi tạo từng element trong mảng và set dwSize
+            for i in range(find_count):
+                pst_record[i] = NET_RECORDSET_ACCESS_CTL_CARD()
+                pst_record[i].dwSize = sizeof(NET_RECORDSET_ACCESS_CTL_CARD)
+
+            # 3. Thiết lập input parameters
             st_in = NET_IN_FIND_NEXT_RECORD_PARAM()
             st_in.dwSize = sizeof(NET_IN_FIND_NEXT_RECORD_PARAM)
             st_in.lFindeHandle = finde_handle
             st_in.nFileCount = find_count
 
+            # 4. Thiết lập output parameters
             st_out = NET_OUT_FIND_NEXT_RECORD_PARAM()
-            st_out.dwSize = sizeof(NET_OUT_FIND_NEXT_RECORD_PARAM)
             st_out.nMaxRecordNum = find_count
+            # 5. Cấp phát memory cho pRecordList (tương đương với new Memory() trong Java)
+            st_out.pRecordList = cast(pst_record, c_void_p)
+            st_out.dwSize = sizeof(NET_OUT_FIND_NEXT_RECORD_PARAM)
+            # 6. Gọi SDK API
             result = self.sdk.FindNextRecord(st_in, st_out, 5000)
-
-            print("result", result)
-            print("msg", self.sdk.GetLastErrorMessage())
-            print("st_out", st_out.nRetRecordNum)
 
             if not result:
                 logger.warning("FindNextRecord failed")
@@ -398,8 +385,19 @@ class DahuaNetSDKService:
                 logger.info("No records found")
                 return None
 
-            # Extract records from pRecordList pointer similar to Java implementation
+            # 7. Extract dữ liệu từ mảng (SDK đã fill dữ liệu vào pst_record)
+            # Tương đương với GetPointerDataToStructArr trong Java
             records: List[NET_RECORDSET_ACCESS_CTL_CARD] = []
+
+            # 8. Tạo list chỉ chứa số lượng record thực tế trả về
+            # (tương đương với tạo pstRecordEx[stNextOut.nRetRecordNum] trong Java)
+            for i in range(record_count):
+                print("pst_record[i].", pst_record[i])
+                print(
+                    "pst_record[i].szCardNo",
+                    pst_record[i].szCardNo.decode("utf-8", errors="ignore"),
+                )
+                records.append(pst_record[i])
 
             return records
 
@@ -407,25 +405,42 @@ class DahuaNetSDKService:
             logger.error("Error occurred while finding next card", error=str(e))
             raise e
 
-    def find_next_record(
-        self, finde_handle: Any, find_count: int
-    ) -> Optional[NET_OUT_FIND_NEXT_RECORD_PARAM]:
+    # ***
+    def find_next_record(self, finde_handle: Any, find_count: int):
+        # 1. Tạo mảng struct
         pst_record = (NET_RECORDSET_ACCESS_CTL_CARDREC * find_count)()
 
+        # 2. Khởi tạo từng element trong mảng và set dwsize
+        for i in range(find_count):
+            pst_record[i] = NET_RECORDSET_ACCESS_CTL_CARDREC()
+            pst_record[i].dwSize = sizeof(NET_RECORDSET_ACCESS_CTL_CARDREC)
+
+        # 3. Thiết lập input
         st_next_in = NET_IN_FIND_NEXT_RECORD_PARAM()
         st_next_in.dwSize = sizeof(NET_IN_FIND_NEXT_RECORD_PARAM)
         st_next_in.lFindeHandle = finde_handle
         st_next_in.nFileCount = find_count
 
+        # 4. Thiết lập output parameters
         st_next_out = NET_OUT_FIND_NEXT_RECORD_PARAM()
-        st_next_out.dwSize = sizeof(NET_OUT_FIND_NEXT_RECORD_PARAM)
         st_next_out.nMaxRecordNum = find_count
-        st_next_out.pRecordList = ctypes.cast(pst_record, ctypes.c_void_p)
 
+        # 5. Cấp phát memory cho pRecordList (tương đương với new Memory() trong Java)
+        st_next_out.pRecordList = cast(pst_record, c_void_p)
+        st_next_out.dwSize = sizeof(NET_OUT_FIND_NEXT_RECORD_PARAM)
+
+        # 6. Gọi SDK API
         result = self.sdk.FindNextRecord(st_next_in, st_next_out, 5000)
-        if result == 1:
-            return st_next_out
-        return None
+        if not result:
+            logger.warning("FindNextRecord failed")
+            return None
+
+        record_count = st_next_out.nRetRecordNum
+        if record_count == 0:
+            logger.info("No records found")
+            return None
+
+        return st_next_out
 
     def find_user(self, device_code: str, user_id: Optional[str] = None):
         self._validate_login(device_code)
@@ -535,8 +550,8 @@ class DahuaNetSDKService:
             return records
 
         # Cast the pointer to the appropriate type
-        record_ptr = ctypes.cast(
-            st_next_out.pRecordList, ctypes.POINTER(NET_RECORDSET_ACCESS_CTL_CARDREC)
+        record_ptr = cast(
+            st_next_out.pRecordList, POINTER(NET_RECORDSET_ACCESS_CTL_CARDREC)
         )
 
         # Extract each record from the pointer array
@@ -555,7 +570,7 @@ class DahuaNetSDKService:
         end_time: Optional[int] = None,
         n_rec: Optional[int] = 1,
         by_asc_order: Optional[bool] = True,
-    ) -> List[NET_RECORDSET_ACCESS_CTL_CARDREC]:
+    ) -> List[AccessCardRecord]:
         self._validate_login(device_code)
         login_id = self.sessions[device_code]
         find_condition = NET_FIND_RECORD_ACCESSCTLCARDREC_CONDITION_EX()
@@ -585,61 +600,88 @@ class DahuaNetSDKService:
         st_in = NET_IN_FIND_RECORD_PARAM()
         st_in.dwSize = sizeof(NET_IN_FIND_RECORD_PARAM)
         st_in.emType = EM_NET_RECORD_TYPE.ACCESSCTLCARDREC_EX
-        st_in.pQueryCondition = ctypes.cast(
-            ctypes.pointer(find_condition), ctypes.c_void_p
-        )
+        st_in.pQueryCondition = cast(pointer(find_condition), c_void_p)
 
         st_out = NET_OUT_FIND_RECORD_PARAM()
-
+        st_out.dwSize = sizeof(NET_OUT_FIND_RECORD_PARAM)
         find_record_result = self.sdk.FindRecord(login_id, st_in, st_out, 5000)
         if not find_record_result:
             return []
 
         ### Find next record
         n_remain_records_to_find = 0
-        max_records_find_for_each_request = 2000
+        max_records_find_for_each_request = 200
 
         if n_rec and n_rec > 0:
-            max_records_find_for_each_request = n_rec if n_rec < 2000 else 2000
+            max_records_find_for_each_request = n_rec if n_rec < 200 else 200
             n_remain_records_to_find = n_rec
         else:
             n_remain_records_to_find = 100000
 
         # List to store all records
-        pst_record_ex_list: List[NET_RECORDSET_ACCESS_CTL_CARDREC] = []
+        pst_record_ex_list: List[AccessCardRecord] = []
 
         # Implement do-while loop logic equivalent in Python
         while True:
             print(
-                "max_records_find_for_each_request", max_records_find_for_each_request
+                "find next record: max_records_find_for_each_request",
+                max_records_find_for_each_request,
             )
             st_next_out = self.find_next_record(
                 st_out.lFindeHandle, max_records_find_for_each_request
             )
 
-            if st_next_out is not None:
-                print("st_next_out", st_next_out.nRetRecordNum)
-
-                if st_next_out.nRetRecordNum == 0:
-                    break
-
-                # Get card info - Process the records from pRecordList
-                # This is equivalent to Java's GetPointerDataToStructArr
-                records = self.get_records_from_pointer(st_next_out)
-                print("records count:", len(records))
-
-                # Add records to result list
-                for record in records:
-                    pst_record_ex_list.append(record)
-                    n_remain_records_to_find -= 1
-
-                    if n_remain_records_to_find == 0:
-                        break
-            else:
+            if st_next_out is None:
                 break
+            record_count = st_next_out.nRetRecordNum
+
+            record_list = cast(
+                st_next_out.pRecordList, POINTER(NET_RECORDSET_ACCESS_CTL_CARDREC)
+            )
+
+            for i in range(record_count):
+                pst_record_ex_list.append(
+                    AccessCardRecord.from_net_recordset(record_list[i])
+                )
+                n_remain_records_to_find -= 1
+
+                if n_remain_records_to_find == 0:
+                    break
 
             # Continue while we haven't found enough records and there are still records available
             if st_next_out.nRetRecordNum == 0 or n_remain_records_to_find <= 0:
                 break
 
         return pst_record_ex_list
+
+    def get_device_info(self, device_code: str):
+        self._validate_login(device_code)
+        login_id = self.sessions[device_code]
+        version_info = NET_A_DEV_VERSION_INFO()
+        version_info.dwSize = sizeof(NET_A_DEV_VERSION_INFO)  # Set size field
+
+        # Create variable to receive actual returned length
+        ret_len = c_int(0)
+
+        result = self.sdk.QueryDevState(
+            login_id,  # Login ID
+            EM_QUERY_DEV_STATE_TYPE.SOFTWARE,  # Query type (software version)
+            version_info,  # Direct pointer to struct
+            sizeof(NET_A_DEV_VERSION_INFO),  # Buffer size
+            0,  # Variable to receive actual length (not pointer)
+            5000,  # Timeout in milliseconds
+        )
+
+        return {
+            "szDevSerialNo": version_info.szDevSerialNo.decode(
+                "utf-8", errors="ignore"
+            ).rstrip("\x00"),
+            "szSoftWareVersion": version_info.szSoftWareVersion.decode(
+                "utf-8", errors="ignore"
+            ).rstrip("\x00"),
+            "szPeripheralSoftwareVersion": version_info.szPeripheralSoftwareVersion.decode(
+                "utf-8", errors="ignore"
+            ).rstrip(
+                "\x00"
+            ),
+        }

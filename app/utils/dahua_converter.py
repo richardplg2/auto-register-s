@@ -24,6 +24,21 @@ def net_time_to_timestamp(net_time: NET_TIME) -> int:
         return int(time())
 
 
+def net_time_to_datetime(net_time: NET_TIME) -> datetime.datetime:
+    """
+    Convert a NET_TIME object to a datetime.datetime object.
+    """
+    return datetime.datetime(
+        year=net_time.dwYear,
+        month=net_time.dwMonth,
+        day=net_time.dwDay,
+        hour=net_time.dwHour,
+        minute=net_time.dwMinute,
+        second=net_time.dwSecond,
+        tzinfo=datetime.timezone.utc,
+    )
+
+
 def timestamp_to_net_time(timestamp: int):
     """
     Convert a Unix timestamp to a NET_TIME object.
