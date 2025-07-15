@@ -213,7 +213,7 @@ class DahuaNetSDKService:
             # Call the SDK function to insert record
             result = self.sdk.ControlDevice(
                 login_id,
-                CtrlType.RECORDSET_UPDATE,
+                CtrlType.RECORDSET_INSERT,
                 stInParam,  # type: ignore
                 5000,  # Timeout in milliseconds
             )
@@ -439,7 +439,9 @@ class DahuaNetSDKService:
 
         return records[0]
 
-    def find_user_v2(self, device_code: str, user_id: str):
+    def find_user_v2(
+        self, device_code: str, user_id: str
+    ) -> NET_OUT_ACCESS_USER_SERVICE_GET:
         self._validate_login(device_code)
         login_id = self.sessions[device_code]
         st_in = NET_IN_ACCESS_USER_SERVICE_GET()
@@ -571,11 +573,11 @@ class DahuaNetSDKService:
             find_condition.bTimeEnable = 0
 
         find_order = NET_FIND_RECORD_ACCESSCTLCARDREC_ORDER()
-        find_order.emField = 1
         if by_asc_order:
             find_order.emOrderType = 1
         else:
             find_order.emOrderType = 2
+        find_order.emField = 1
 
         find_condition.nOrderNum = 1
         find_condition.stuOrders[0] = find_order
@@ -588,7 +590,6 @@ class DahuaNetSDKService:
         )
 
         st_out = NET_OUT_FIND_RECORD_PARAM()
-        st_out.dwSize = sizeof(NET_OUT_FIND_RECORD_PARAM)
 
         find_record_result = self.sdk.FindRecord(login_id, st_in, st_out, 5000)
         if not find_record_result:

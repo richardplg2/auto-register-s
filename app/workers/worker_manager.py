@@ -54,8 +54,6 @@ class WorkerManager:
         self.logger = structlog.get_logger(__name__)
 
     def init(self, container: "Container"):
-        from app.core.containers import Container
-
         self.container = container
         # Pass container to workers that need it
 
@@ -145,12 +143,12 @@ class WorkerManager:
     def start_all(self) -> None:
         """Start all workers in separate threads"""
         for worker in self.worker_instances:
-            worker.instance.start()  # Only call start(), not run()
+            worker.start()  # Only call start(), not run()
 
         self.running = True
 
     def stop_all(self, timeout: Optional[float] = 30) -> None:
         for worker in self.worker_instances:
-            worker.instance.stop(timeout=timeout)
+            worker.stop(timeout=timeout)
 
         self.running = False

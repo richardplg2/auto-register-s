@@ -23,7 +23,9 @@ async def get_device_recordings(
 ):
     """Get device recordings by device code using dependency injection."""
     try:
-        records = dahua_net_sdk_service.find_records(device_code, n_rec=1000)
+        records = dahua_net_sdk_service.find_records(
+            device_code, n_rec=1, by_asc_order=False
+        )
 
         return records
     except Exception as e:
