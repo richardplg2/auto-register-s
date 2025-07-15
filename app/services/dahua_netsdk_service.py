@@ -302,6 +302,9 @@ class DahuaNetSDKService:
             raise Exception(self.sdk.GetLastErrorMessage())
         return True
 
+    def remove_user(self, device_code: str, user_id: str):
+        """"""
+
     def listen_server(
         self,
         host: str,

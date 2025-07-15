@@ -209,13 +209,16 @@ class DeviceEventPollingWorker(BaseWorker):
         """Send event data to the configured webhook URL."""
         webhook_url = settings.WEBHOOK_URL
 
+        # Debug: Check for bytes in payload
+        payload = event.to_webhook_payload()
+
         async with httpx.AsyncClient() as client:
-            response = await client.post(webhook_url, json=event.to_webhook_payload())
+            response = await client.post(webhook_url, json=payload)
             if response.status_code != 200:
                 self.logger.error(
                     "Failed to send event to webhook",
                     device_code=self.device_code,
-                    event=event.to_webhook_payload(),
+                    event=payload,
                     status=response.status_code,
                 )
 
