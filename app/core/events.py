@@ -54,3 +54,18 @@ class DeviceDisconnectedEvent(DeviceEvent):
 
     def __init__(self, device_code: str):
         super().__init__(event_type="device_disconnected", device_code=device_code)
+
+
+class UpdateLastRecNoEvent(DeviceEvent):
+    """Update last record number event"""
+
+    def __init__(self, device_code: str, last_rec_no: int):
+        super().__init__(
+            event_type="update_last_rec_no",
+            device_code=device_code,
+            last_rec_no=last_rec_no,
+        )
+
+    @property
+    def last_rec_no(self) -> int:
+        return self.data["last_rec_no"]

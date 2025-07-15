@@ -38,7 +38,10 @@ async def lifespan(app: FastAPI):
 
     # Setup event handlers - manually subscribe
     device_handler = container.device_auto_register_handler()
+    update_handler = container.update_last_rec_no_handler()
+
     event_bus.subscribe("device_auto_register", device_handler)
+    event_bus.subscribe("update_last_rec_no", update_handler)
 
     # Start event bus
     await event_bus.start()

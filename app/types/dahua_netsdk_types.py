@@ -112,18 +112,28 @@ class AccessCardRecord:
         Assumes `record` has attributes matching the expected fields.
         """
         return AccessCardRecord(
-            card_no=getattr(record, "szCardNo", ""),
+            card_no=getattr(record, "szCardNo", b"")
+            .decode("utf-8", errors="ignore")
+            .rstrip("\x00"),
             rec_no=getattr(record, "nRecNo", 0),
-            card_name=getattr(record, "szCardName", ""),
+            card_name=getattr(record, "szCardName", b"")
+            .decode("utf-8", errors="ignore")
+            .rstrip("\x00"),
             card_type=record.emCardType,
-            user_id=getattr(record, "szUserID", ""),
-            reader_id=getattr(record, "szReaderID", ""),
+            user_id=getattr(record, "szUserID", b"")
+            .decode("utf-8", errors="ignore")
+            .rstrip("\x00"),
+            reader_id=getattr(record, "szReaderID", b"")
+            .decode("utf-8", errors="ignore")
+            .rstrip("\x00"),
             door=getattr(record, "nDoor", 0),
             b_status=getattr(record, "bStatus", 0),
             error_code=getattr(record, "nErrorCode", 0),
             stu_time=net_time_to_datetime(record.stuTime),
             method=getattr(record, "nMethod", 0),
-            snap_ftp_url=getattr(record, "szSnapFtpUrl", ""),
+            snap_ftp_url=getattr(record, "szSnapFtpUrl", b"")
+            .decode("utf-8", errors="ignore")
+            .rstrip("\x00"),
             em_direction=getattr(record, "emDirection", 0),
             is_over_temparature=bool(getattr(record, "bIsOverTemparature", False)),
             temperature_unit=getattr(record, "emTemperatureUnit", 0),

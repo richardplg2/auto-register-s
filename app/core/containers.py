@@ -6,6 +6,7 @@ from app.core.database import Database
 from app.core.event_bus import AsyncEventBus
 from app.core.settings import Settings
 from app.handlers.device_event_handler import DeviceAutoRegisterHandler
+from app.handlers.update_last_rec_no_handler import UpdateLastRecNoHandler
 from app.repos.device_repo import DeviceRepo
 from app.services.dahua_netsdk_service import DahuaNetSDKService
 from app.workers.worker_manager import WorkerManager
@@ -38,6 +39,11 @@ class Container(containers.DeclarativeContainer):
         device_repo=device_repo,
         dahua_netsdk_service=dahua_netsdk_service,
         worker_manager=worker_manager,
+    )
+
+    update_last_rec_no_handler = providers.Factory(
+        UpdateLastRecNoHandler,
+        device_repo=device_repo,
     )
 
     def initialize_container_resources(self):

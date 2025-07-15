@@ -8,6 +8,7 @@ import structlog
 if TYPE_CHECKING:
     from app.core.containers import Container
 
+from app.core.events import UpdateLastRecNoEvent
 from app.core.settings import get_settings
 from app.types.dahua_netsdk_types import AccessCardRecord
 from app.workers.base_worker import BaseWorker
@@ -118,6 +119,21 @@ class DeviceEventPollingWorker(BaseWorker):
                 )
                 break
 
+    def _debounce_save_last_uploaded_rec_no(self):
+        self.logger.info(
+            "Debounced save last uploaded rec no",
+            device_code=self.device_code,
+            last_uploaded_rec_no=self.last_uploaded_rec_no,
+        )
+
+        event = UpdateLastRecNoEvent(
+            device_code=self.device_code,
+            last_rec_no=self.last_uploaded_rec_no,
+        )
+
+        # Publish event via event bus (thread-safe)
+        self.event_bus.publish_threadsafe(event)
+
     async def _event_polling_loop(self):
         while not self.should_stop:
             try:
@@ -187,6 +203,7 @@ class DeviceEventPollingWorker(BaseWorker):
         await self._send_event_to_webhook(event)
 
         self.last_uploaded_rec_no = event.rec_no
+        self._debounce_save_last_uploaded_rec_no()
 
     async def _send_event_to_webhook(self, event: AccessCardRecord) -> None:
         """Send event data to the configured webhook URL."""
