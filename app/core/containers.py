@@ -8,6 +8,7 @@ from app.core.settings import Settings
 from app.handlers.device_event_handler import DeviceAutoRegisterHandler
 from app.repos.device_repo import DeviceRepo
 from app.services.dahua_netsdk_service import DahuaNetSDKService
+from app.workers.worker_manager import WorkerManager
 
 
 class Container(containers.DeclarativeContainer):
@@ -24,6 +25,8 @@ class Container(containers.DeclarativeContainer):
     # Event Bus - will be initialized with main loop
     event_bus = providers.Singleton(AsyncEventBus)
 
+    worker_manager = providers.Singleton(WorkerManager)
+
     # Repositories - will be created lazily after db is initialized
     device_repo = providers.Factory(
         DeviceRepo, session_factory=db.provided.session_factory
@@ -34,6 +37,7 @@ class Container(containers.DeclarativeContainer):
         DeviceAutoRegisterHandler,
         device_repo=device_repo,
         dahua_netsdk_service=dahua_netsdk_service,
+        worker_manager=worker_manager,
     )
 
     def initialize_container_resources(self):

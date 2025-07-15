@@ -7,6 +7,8 @@ from NetSDK.SDK_Enum import EM_AUTOREGISTER_TYPE  # type: ignore
 from app.core.event_bus import Event, EventHandler
 from app.repos.device_repo import DeviceRepo
 from app.services.dahua_netsdk_service import DahuaNetSDKService
+from app.workers.worker_manager import WorkerManager
+from app.workers.worker_types import WorkerType
 
 logger = structlog.get_logger(__name__)
 
@@ -15,10 +17,14 @@ class DeviceAutoRegisterHandler(EventHandler):
     """Handler for device auto register events"""
 
     def __init__(
-        self, device_repo: DeviceRepo, dahua_netsdk_service: DahuaNetSDKService
+        self,
+        device_repo: DeviceRepo,
+        dahua_netsdk_service: DahuaNetSDKService,
+        worker_manager: WorkerManager,
     ):
         self.device_repo = device_repo
         self.dahua_netsdk_service = dahua_netsdk_service
+        self.worker_manager = worker_manager
 
     async def handle(self, event: Event) -> None:
         """Handle device auto register event"""
@@ -56,6 +62,11 @@ class DeviceAutoRegisterHandler(EventHandler):
                     "last_disconnected_at": datetime.now(),
                 }
                 await self.device_repo.update_device_by_code(device_code, updates)
+
+                # Stop dynamic worker for polling events
+                self.worker_manager.stop_device_worker(
+                    device_code, WorkerType.DEVICE_EVENTS_POLLING
+                )
                 return
 
             if device.username is None or device.password is None:
@@ -87,6 +98,21 @@ class DeviceAutoRegisterHandler(EventHandler):
                 device_code=device_code,
                 updates=updates,
             )
+
+            # Start dynamic worker for polling events
+            if login_id > 0:
+                # self.dynamic_worker_manager.start_worker(
+                #     device_code=device_code, login_id=login_id, polling_interval=5
+                # )
+
+                self.worker_manager.run_device_worker(
+                    device_code, WorkerType.DEVICE_EVENTS_POLLING
+                )
+                logger.info(
+                    "Started worker for device",
+                    device_code=device_code,
+                    login_id=login_id,
+                )
 
         except Exception as e:
             logger.error(

@@ -10,6 +10,7 @@ from app.apis import router_v1
 from app.core.containers import Container
 from app.core.logging import setup_logging
 from app.core.settings import get_settings
+from app.workers import dynamic_worker_manager
 from app.workers.worker_manager import WorkerManager
 
 settings = get_settings()
@@ -43,7 +44,9 @@ async def lifespan(app: FastAPI):
     # Start event bus
     await event_bus.start()
 
-    worker_manager = WorkerManager(container)
+    worker_manager = container.worker_manager()
+    worker_manager.init(container)
+
     worker_manager.start_all()
 
     yield
