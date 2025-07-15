@@ -101,18 +101,17 @@ class DeviceAutoRegisterHandler(EventHandler):
 
             # Start dynamic worker for polling events
             if login_id > 0:
-                # self.dynamic_worker_manager.start_worker(
-                #     device_code=device_code, login_id=login_id, polling_interval=5
-                # )
-
-                self.worker_manager.run_device_worker(
-                    device_code, WorkerType.DEVICE_EVENTS_POLLING
-                )
-                logger.info(
-                    "Started worker for device",
-                    device_code=device_code,
-                    login_id=login_id,
-                )
+                if device.enabled_access_control_event is True:
+                    self.worker_manager.run_device_worker(
+                        device_code,
+                        WorkerType.DEVICE_EVENTS_POLLING,
+                        metadata={"last_uploaded_rec_no": device.last_uploaded_rec_no},
+                    )
+                    logger.info(
+                        "Started worker for device",
+                        device_code=device_code,
+                        login_id=login_id,
+                    )
 
         except Exception as e:
             logger.error(

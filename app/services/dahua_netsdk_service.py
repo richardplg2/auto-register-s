@@ -762,3 +762,29 @@ class DahuaNetSDKService:
                 "\x00"
             ),
         }
+
+    def download_remote_file(self, device_code: str, file_path: str):
+        self._validate_login(device_code)
+        login_id = self.sessions[device_code]
+        st_in = NET_IN_DOWNLOAD_REMOTE_FILE()
+        st_in.dwSize = sizeof(NET_IN_DOWNLOAD_REMOTE_FILE)
+        st_in.pszFileName = cast(file_path.encode("utf-8"), c_void_p)  # type: ignore
+        st_in.pszFileDst = cast(b"", c_void_p)  # type: ignore
+
+        st_out = NET_OUT_DOWNLOAD_REMOTE_FILE()
+        st_out.dwMaxFileBufLen = 999999
+        file_buf = create_string_buffer(999999)
+        st_out.pstFileBuf = cast(file_buf, c_void_p)
+        memset(file_buf, 0, 999999)
+
+        result = self.sdk.DownloadRemoteFile(login_id, st_in, st_out, 6000)
+        if not result:
+            logger.error(
+                "Error downloading remote file",
+                device_code=device_code,
+                file_path=file_path,
+                error=self.sdk.GetLastErrorMessage(),
+            )
+            return None
+
+        return file_buf.raw

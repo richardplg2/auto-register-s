@@ -5,11 +5,12 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
+    "aioboto3>=15.0.0",
     "aiomysql>=0.2.0",
     "aiosqlite>=0.21.0",
     "dependency-injector>=4.48.1",
     "fastapi>=0.116.0",
-    "netsdk @ file:///mnt/d/work/p/viAct/dahua/lib/NetSDK-2.0.0.1-py3-none-linux_x86_64.whl",
+    # "netsdk @ file:///mnt/d/work/p/viAct/dahua/lib/NetSDK-2.0.0.1-py3-none-linux_x86_64.whl",
     "pydantic>=2.11.7",
     "pydantic-settings>=2.10.1",
     "requests>=2.32.4",
@@ -19,6 +20,4 @@ dependencies = [
 ]
 
 [dependency-groups]
-dev = [
-    "pylint>=3.3.7",
-]
+dev = ["pylint>=3.3.7"]

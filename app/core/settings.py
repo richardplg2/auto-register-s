@@ -63,6 +63,15 @@ class Settings(BaseSettings):
     DATABASE_PASSWORD: str = Field(default="password", description="Database password")
     DATABASE_SCHEMA: str = Field(default="dbname", description="Database schema")
 
+    AWS_ACCESS_KEY_ID: str = Field(
+        default="your_access_key_id", description="AWS access key ID"
+    )
+    AWS_SECRET_ACCESS_KEY: str = Field(
+        default="your_secret_access_key", description="AWS secret access key"
+    )
+    AWS_REGION: str = Field(default="us-east-1", description="AWS region")
+    AWS_S3_BUCKET: str = Field(default="your_s3_bucket", description="S3 bucket name")
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",

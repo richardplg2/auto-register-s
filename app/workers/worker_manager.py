@@ -1,6 +1,6 @@
 import threading
 from datetime import datetime
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING, Any, Dict, Optional
 from uuid import UUID, uuid4
 
 import structlog
@@ -72,7 +72,10 @@ class WorkerManager:
             )
 
     def _init_instance_by_type(
-        self, worker_type: WorkerType, device_code: Optional[str] = None
+        self,
+        worker_type: WorkerType,
+        device_code: Optional[str] = None,
+        metadata: Optional[Dict[str, Any]] = {},
     ):
         if self.container is None:
             raise Exception("Container is not initialized")
@@ -94,7 +97,12 @@ class WorkerManager:
                     return True
         return False
 
-    def run_device_worker(self, device_code: str, worker_type: WorkerType) -> None:
+    def run_device_worker(
+        self,
+        device_code: str,
+        worker_type: WorkerType,
+        metadata: Optional[Dict[str, Any]] = {},
+    ) -> None:
         """Run a worker for a specific device."""
         if self.running == False:
             raise Exception("Worker manager is not running")
@@ -105,7 +113,7 @@ class WorkerManager:
             )
             return
 
-        instance = self._init_instance_by_type(worker_type, device_code)
+        instance = self._init_instance_by_type(worker_type, device_code, metadata)
         self.add_worker(
             worker_type,
             instance,

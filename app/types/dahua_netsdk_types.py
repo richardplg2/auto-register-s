@@ -63,6 +63,7 @@ class AccessCardRecord:
         temperature_unit: int,
         current_temperature: float,
         em_mask: int,
+        image_url: Optional[str] = None,
     ):
         self.card_no = card_no
         self.rec_no = rec_no
@@ -81,6 +82,10 @@ class AccessCardRecord:
         self.temperature_unit = temperature_unit
         self.current_temperature = current_temperature
         self.em_mask = em_mask
+        self.image_url = image_url
+
+    def image_name(self):
+        return f"{self.card_no}_{self.rec_no}.jpg"
 
     @staticmethod
     def from_net_recordset(

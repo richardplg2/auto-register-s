@@ -35,3 +35,5 @@ class Device(BaseModel):
     last_disconnected_at = Column(DateTime, nullable=True)
 
     enabled_access_control_event = Column(Boolean, default=False, nullable=False)
+
+    last_uploaded_rec_no = Column(Integer, default=-1, nullable=False)
