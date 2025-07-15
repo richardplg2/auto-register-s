@@ -610,10 +610,10 @@ class DahuaNetSDKService:
 
         ### Find next record
         n_remain_records_to_find = 0
-        max_records_find_for_each_request = 200
+        max_records_find_for_each_request = 2000
 
         if n_rec and n_rec > 0:
-            max_records_find_for_each_request = n_rec if n_rec < 200 else 200
+            max_records_find_for_each_request = n_rec if n_rec < 2000 else 2000
             n_remain_records_to_find = n_rec
         else:
             n_remain_records_to_find = 100000
@@ -640,6 +640,83 @@ class DahuaNetSDKService:
             )
 
             for i in range(record_count):
+                pst_record_ex_list.append(
+                    AccessCardRecord.from_net_recordset(record_list[i])
+                )
+                n_remain_records_to_find -= 1
+
+                if n_remain_records_to_find == 0:
+                    break
+
+            # Continue while we haven't found enough records and there are still records available
+            if st_next_out.nRetRecordNum == 0 or n_remain_records_to_find <= 0:
+                break
+
+        return pst_record_ex_list
+
+    def find_records_by_rec_no(
+        self, device_code: str, from_rec_no: int, n_rec: int, by_asc_order: bool
+    ) -> List[AccessCardRecord]:
+        """Find records by record number range."""
+        self._validate_login(device_code)
+        login_id = self.sessions[device_code]
+
+        find_condition = NET_FIND_RECORD_ACCESSCTLCARDREC_CONDITION_EX()
+        find_condition.dwSize = sizeof(NET_FIND_RECORD_ACCESSCTLCARDREC_CONDITION_EX)
+        find_condition.bCardNoEnable = 0
+        find_condition.bTimeEnable = 0
+
+        find_order = NET_FIND_RECORD_ACCESSCTLCARDREC_ORDER()
+        if by_asc_order:
+            find_order.emOrderType = 1
+        else:
+            find_order.emOrderType = 2
+        find_order.emField = 1
+
+        find_condition.nOrderNum = 1
+        find_condition.stuOrders[0] = find_order
+
+        st_in = NET_IN_FIND_RECORD_PARAM()
+        st_in.dwSize = sizeof(NET_IN_FIND_RECORD_PARAM)
+        st_in.emType = EM_NET_RECORD_TYPE.ACCESSCTLCARDREC_EX
+        st_in.pQueryCondition = cast(pointer(find_condition), c_void_p)
+
+        st_out = NET_OUT_FIND_RECORD_PARAM()
+        st_out.dwSize = sizeof(NET_OUT_FIND_RECORD_PARAM)
+
+        find_record_result = self.sdk.FindRecord(login_id, st_in, st_out, 5000)
+        if not find_record_result:
+            return []
+
+        ### Find next record
+        n_remain_records_to_find = n_rec
+        max_records_find_for_each_request = 2000
+
+        # List to store all records
+        pst_record_ex_list: List[AccessCardRecord] = []
+
+        # Implement do-while loop logic equivalent in Python
+        while True:
+            print(
+                "find next record: max_records_find_for_each_request",
+                max_records_find_for_each_request,
+            )
+            st_next_out = self.find_next_record(
+                st_out.lFindeHandle, max_records_find_for_each_request
+            )
+
+            if st_next_out is None:
+                break
+            record_count = st_next_out.nRetRecordNum
+
+            record_list = cast(
+                st_next_out.pRecordList, POINTER(NET_RECORDSET_ACCESS_CTL_CARDREC)
+            )
+
+            for i in range(record_count):
+                if record_list[i].nRecNo < from_rec_no:
+                    continue
+
                 pst_record_ex_list.append(
                     AccessCardRecord.from_net_recordset(record_list[i])
                 )

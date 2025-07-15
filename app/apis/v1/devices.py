@@ -29,23 +29,31 @@ async def get_device_recordings(
             device_code, n_rec=n_rec, by_asc_order=by_asc_order
         )
 
-        # Remove duplicate records based on rec_no
-        unique_records = {}
-        for record in records:
-            rec_no = getattr(record, "rec_no", None)
-            if rec_no is not None and rec_no not in unique_records:
-                unique_records[rec_no] = record
+        return records
 
-        deduped_records = list(unique_records.values())
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
-        # Add total length of the array to the response
-        response = {
-            "total": len(deduped_records),
-            "records": deduped_records,
-        }
-        return response
+
+@router.get("/{device_code}/recordings/from-records")
+@inject
+async def get_device_recordings_from(
+    device_code: str,
+    from_rec_no: int,
+    dahua_net_sdk_service: DahuaNetSDKService = Depends(
+        Provide[Container.dahua_netsdk_service]
+    ),
+    n_rec: int = 1,
+    by_asc_order: bool = False,
+):
+    """Get device recordings from a specific record number using dependency injection."""
+    try:
+        records = dahua_net_sdk_service.find_records_by_rec_no(
+            device_code, from_rec_no=from_rec_no, n_rec=n_rec, by_asc_order=by_asc_order
+        )
 
         return records
+
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
